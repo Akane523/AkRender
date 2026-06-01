@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "akrender",
+  "version": "0.1.0",
+  "description": "A toy renderer using Slang + Vulkan",
+  "dependencies": [
+    "vulkan",
+    "vulkan-memory-allocator",
+    "glfw3",
+    "glm",
+    "spdlog",
+    "stb"
+  ]
+}
