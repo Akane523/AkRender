@@ -1,4 +1,4 @@
-//===------ ShaderManifest.cpp --------------------------------------------===//
+//===------ Manifest.cpp --------------------------------------------------===//
 //
 // Implements the Manifest class for building AkRender Shader Set.
 //
@@ -16,9 +16,9 @@ namespace AkRender::Shaders
 struct Manifest::Impl
 {
   std::vector<Config::BinaryResource> binary_resources;
-  std::vector<Config::SpirV_Shader> spirv_shaders;
-  std::vector<Config::SlangModule> slang_modules;
-  std::vector<Config::SlangKernel> slang_kernels;
+  std::vector<Config::SpirV_Shader>   spirv_shaders;
+  std::vector<Config::SlangModule>    slang_modules;
+  std::vector<Config::SlangShader>    slang_shaders;
 };
 
 Manifest::Manifest()
@@ -49,9 +49,9 @@ Config::SlangModule *Manifest::add_slang_module(std::string name)
   return &item;
 }
 
-Config::SlangKernel *Manifest::add_slang_kernel(std::string name)
+Config::SlangShader *Manifest::add_slang_shader(std::string name)
 {
-  auto &item = m_impl->slang_kernels.emplace_back();
+  auto &item = m_impl->slang_shaders.emplace_back();
   item.name = std::move(name);
   return &item;
 }
@@ -88,12 +88,12 @@ const Config::SlangModule *Manifest::find_slang_module(
   return nullptr;
 }
 
-const Config::SlangKernel *Manifest::find_slang_kernel(
+const Config::SlangShader *Manifest::find_slang_shader(
     std::string_view name) const
 {
-  auto it = std::ranges::find(m_impl->slang_kernels, name,
-                              &Config::SlangKernel::name);
-  if (it != m_impl->slang_kernels.end())
+  auto it = std::ranges::find(m_impl->slang_shaders, name,
+                              &Config::SlangShader::name);
+  if (it != m_impl->slang_shaders.end())
     return &*it;
   return nullptr;
 }
@@ -113,9 +113,9 @@ size_t Manifest::num_slang_modules() const
   return m_impl->slang_modules.size();
 }
 
-size_t Manifest::num_slang_kernels() const
+size_t Manifest::num_slang_shaders() const
 {
-  return m_impl->slang_kernels.size();
+  return m_impl->slang_shaders.size();
 }
 
 std::span<const Config::BinaryResource> Manifest::binary_resources() const
@@ -133,9 +133,9 @@ std::span<const Config::SlangModule> Manifest::slang_modules() const
   return m_impl->slang_modules;
 }
 
-std::span<const Config::SlangKernel> Manifest::slang_kernels() const
+std::span<const Config::SlangShader> Manifest::slang_shaders() const
 {
-  return m_impl->slang_kernels;
+  return m_impl->slang_shaders;
 }
 
 } // namespace AkRender::Shaders

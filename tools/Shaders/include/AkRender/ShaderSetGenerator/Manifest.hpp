@@ -1,6 +1,10 @@
-//===------ ShaderManifest.hpp --------------------------------------------===//
+//===------ Manifest.hpp --------------------------------------------------===//
 //
-// Configures to build AkRender Shader Set.
+// Configures the build of an AkRender Shader Set from the source tree.
+//
+// The Manifest is the build-time counterpart of ShaderDescriptor.hpp:
+//   - Manifest describes what to compile and how (source paths, options).
+//   - ShaderDescriptor describes the final embedded data (Records into blob).
 //
 //===----------------------------------------------------------------------===//
 
@@ -8,11 +12,12 @@
 
 #include <filesystem>
 #include <memory>
-#include <optional>
 #include <span>
+#include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
+
+#include <AkRender/Shaders/SlangJIT.hpp>
 
 namespace AkRender::Shaders
 {
@@ -25,8 +30,6 @@ enum class ResourceSeekType
 {
   /// The resource content is embedded directly into the output.
   Embed,
-  /// The resource is referenced via the file system at runtime.
-  FileSystem,
 };
 
 /// \brief Describes a binary resource to be embedded into or referenced from
@@ -38,10 +41,10 @@ struct BinaryResource
   /// Path to the source file on disk.
   std::filesystem::path source_path;
   /// How this resource is located during the build.
-  ResourceSeekType seek_type;
+  ResourceSeekType seek_type = ResourceSeekType::Embed;
 };
 
-/// \brief Describes a SPIR-V shader with its entry point.
+/// \brief Describes a pre-compiled SPIR-V shader with its entry point.
 struct SpirV_Shader
 {
   /// Unique name used to identify this shader.
@@ -49,34 +52,70 @@ struct SpirV_Shader
   /// Path to the SPIR-V source file.
   std::filesystem::path source_path;
   /// Name of the entry-point function (e.g. \p "main").
-  std::string entry_point;
+  std::string entry_point = "main";
   /// How this shader is located during the build.
-  ResourceSeekType seek_type;
+  ResourceSeekType seek_type = ResourceSeekType::Embed;
 };
 
 /// \brief Describes a Slang module to be compiled.
+///
+/// At build time slangc compiles one or more \c .slang files into a single
+/// .slang-module (IR container).  Multiple sources are combined under one
+/// module identity.
+///
+/// The module_name is what shaders use in \c import statements; it defaults to
+/// \a name if not specified.
 struct SlangModule
 {
-  /// Unique name used to identify this module.
+  /// Unique name used to identify this module in the manifest.
+  std::string name;
+  /// Paths to the \c .slang source file(s).
+  std::vector<std::filesystem::path> source_paths;
+  /// Module identity for \c -module-name (e.g. "math_utils").
+  /// Defaults to \a name when empty.
+  std::string module_name;
+};
+
+/// \brief Determines what output the generator should produce for a Slang
+///        shader.
+enum class SlangOutputMode : uint8_t
+{
+  /// Emit .slang-module IR only — the shader is JIT-compiled at runtime.
+  SlangIR,
+  /// Emit .spv only — fully offline compilation, no runtime Slang needed.
+  SpirV,
+  /// Emit both .spv and .slang-module IR.
+  Both,
+};
+
+/// \brief Describes a shader entry point written in Slang.
+///
+/// At build time the generator compiles the source according to \a mode:
+///   - SlangIR  →  .slang-module (for runtime JIT + reflection)
+///   - SpirV    →  .spv (fully offline)
+///   - Both     →  both formats
+///
+/// \a dependencies are module names (Config::SlangModule::name), stable across
+/// any subsequent manifest mutations.
+struct SlangShader
+{
+  /// Unique name used to identify this shader.
   std::string name;
   /// Path to the \c .slang source file.
   std::filesystem::path source_path;
-};
-
-/// \brief Describes a Slang kernel (compute or other entry point) and its
-///        module dependencies.
-struct SlangKernel
-{
-  /// Unique name used to identify this kernel.
-  std::string name;
-  /// Path to the \c .slang source file containing the kernel.
-  std::filesystem::path source_path;
-  /// Name of the entry-point function (e.g. \p "computeMain").
-  std::string entry_point;
-  /// Modules that must be imported before this kernel can be compiled.
-  std::vector<SlangModule *> dependencies;
-  /// How this kernel is located during the build.
-  ResourceSeekType seek_type;
+  /// Name of the entry-point function (e.g. \p "main").
+  std::string entry_point = "main";
+  /// Pipeline stage this shader compiles to.
+  Stage stage;
+  /// Compile options (target, optimisation, matrix layout, etc.).
+  CompileOptions options;
+  /// Output mode — what the generator should produce.
+  SlangOutputMode mode = SlangOutputMode::SlangIR;
+  /// Names of SlangModule entries that must be imported before this shader
+  /// can be compiled.  The names are compared against SlangModule::name.
+  std::vector<std::string> dependencies;
+  /// How this shader is located during the build.
+  ResourceSeekType seek_type = ResourceSeekType::Embed;
 };
 
 } // namespace Config
@@ -91,24 +130,23 @@ class Manifest
 public:
   /// \brief Constructs an empty manifest.
   Manifest();
-  /// \brief Destructor.
   Manifest(Manifest &&) noexcept = default;
   ~Manifest();
 
   // --- Mutators -----------------------------------------------------------
 
   /// \brief Adds a binary resource.
-  /// \returns Pointer to the newly added entry.
+  /// \returns Pointer to the newly added entry (owned by the Manifest).
   Config::BinaryResource *add_binary_resource(std::string name);
   /// \brief Adds a SPIR-V shader.
-  /// \returns Pointer to the newly added entry.
+  /// \returns Pointer to the newly added entry (owned by the Manifest).
   Config::SpirV_Shader *add_spirv_shader(std::string name);
   /// \brief Adds a Slang module.
-  /// \returns Pointer to the newly added entry.
+  /// \returns Pointer to the newly added entry (owned by the Manifest).
   Config::SlangModule *add_slang_module(std::string name);
-  /// \brief Adds a Slang kernel.
-  /// \returns Pointer to the newly added entry.
-  Config::SlangKernel *add_slang_kernel(std::string name);
+  /// \brief Adds a Slang shader.
+  /// \returns Pointer to the newly added entry (owned by the Manifest).
+  Config::SlangShader *add_slang_shader(std::string name);
 
   // --- Queries ------------------------------------------------------------
 
@@ -122,9 +160,9 @@ public:
   /// \brief Looks up a Slang module by name.
   /// \returns pointer to the entry or \c nullptr if not found.
   const Config::SlangModule *find_slang_module(std::string_view name) const;
-  /// \brief Looks up a Slang kernel by name.
+  /// \brief Looks up a Slang shader by name.
   /// \returns pointer to the entry or \c nullptr if not found.
-  const Config::SlangKernel *find_slang_kernel(std::string_view name) const;
+  const Config::SlangShader *find_slang_shader(std::string_view name) const;
 
   /// \brief Returns the number of registered binary resources.
   size_t num_binary_resources() const;
@@ -132,8 +170,8 @@ public:
   size_t num_spirv_shaders() const;
   /// \brief Returns the number of registered Slang modules.
   size_t num_slang_modules() const;
-  /// \brief Returns the number of registered Slang kernels.
-  size_t num_slang_kernels() const;
+  /// \brief Returns the number of registered Slang shaders.
+  size_t num_slang_shaders() const;
 
   /// \brief Returns a span of all binary resources.
   std::span<const Config::BinaryResource> binary_resources() const;
@@ -141,8 +179,8 @@ public:
   std::span<const Config::SpirV_Shader> spirv_shaders() const;
   /// \brief Returns a span of all Slang modules.
   std::span<const Config::SlangModule> slang_modules() const;
-  /// \brief Returns a span of all Slang kernels.
-  std::span<const Config::SlangKernel> slang_kernels() const;
+  /// \brief Returns a span of all Slang shaders.
+  std::span<const Config::SlangShader> slang_shaders() const;
 };
 
 // --- External interface ------------
