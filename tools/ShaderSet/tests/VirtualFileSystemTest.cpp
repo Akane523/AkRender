@@ -5,7 +5,7 @@
 namespace
 {
 
-using namespace AkRender::Shaders;
+using namespace AkRender::ShaderSet;
 
 // ── Flat node array — one single aggregate initialiser! ────────────────────
 //

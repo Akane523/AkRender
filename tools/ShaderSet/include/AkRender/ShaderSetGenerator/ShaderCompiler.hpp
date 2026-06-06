@@ -5,7 +5,7 @@
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
 
 
-namespace AkRender::Shaders
+namespace AkRender::ShaderSet
 {
     struct CompilerEnviroment {
         std::filesystem::path work_dir;

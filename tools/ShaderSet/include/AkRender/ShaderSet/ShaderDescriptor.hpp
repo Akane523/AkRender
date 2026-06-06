@@ -7,7 +7,7 @@
 #include <AkRender/ShaderSet/SlangJIT.hpp>
 #include <AkRender/ShaderSet/VirtualFileSystem.hpp>
 
-namespace AkRender::Shaders
+namespace AkRender::ShaderSet
 {
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -115,4 +115,4 @@ struct SpirV_Shader
   Stage stage;
 };
 
-} // namespace AkRender::Shaders
+} // namespace AkRender::ShaderSet

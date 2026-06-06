@@ -8,7 +8,7 @@
 #include <type_traits>
 #include <variant>
 
-namespace AkRender::Shaders
+namespace AkRender::ShaderSet
 {
 
 // ---------------------------------------------------------------------------
@@ -297,4 +297,4 @@ public:
   }
 };
 
-} // namespace AkRender::Shaders
+} // namespace AkRender::ShaderSet

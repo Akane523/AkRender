@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace AkRender::Shaders
+namespace AkRender::ShaderSet
 {
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -87,4 +87,4 @@ struct CompileOptions
   bool              debug_info    = false;
 };
 
-} // namespace AkRender::Shaders
+} // namespace AkRender::ShaderSet

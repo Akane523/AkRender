@@ -19,7 +19,7 @@
 
 #include <AkRender/ShaderSet/SlangJIT.hpp>
 
-namespace AkRender::Shaders
+namespace AkRender::ShaderSet
 {
 
 namespace Config
@@ -191,4 +191,4 @@ public:
 /// generator.
 Manifest make_manifest();
 
-} // namespace AkRender::Shaders
+} // namespace AkRender::ShaderSet

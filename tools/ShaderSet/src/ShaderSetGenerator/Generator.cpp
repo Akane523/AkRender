@@ -1,8 +1,8 @@
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
 #include <AkRender/ShaderSetGenerator/ShaderCompiler.hpp>
 
-using AkRender::Shaders::make_manifest;
-using AkRender::Shaders::Manifest;
+using AkRender::ShaderSet::make_manifest;
+using AkRender::ShaderSet::Manifest;
 
 struct ShaderSetGenerator
 {

@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-namespace AkRender::Shaders
+namespace AkRender::ShaderSet
 {
 
 struct Manifest::Impl
@@ -138,4 +138,4 @@ std::span<const Config::SlangShader> Manifest::slang_shaders() const
   return m_impl->slang_shaders;
 }
 
-} // namespace AkRender::Shaders
+} // namespace AkRender::ShaderSet
