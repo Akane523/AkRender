@@ -67,8 +67,8 @@
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Require Slang
-if(NOT TARGET Slang::Compiler AND NOT Slang_FOUND)
-    find_package(Slang REQUIRED)
+if(NOT TARGET slang::slang AND NOT slang_FOUND)
+    find_package(slang CONFIG REQUIRED)
 endif()
 
 # ══════════════════════════════════════════════════════════════════════════════

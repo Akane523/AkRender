@@ -1,0 +1,24 @@
+---
+Language:        Cpp
+BasedOnStyle:    LLVM
+IndentWidth:     2
+ColumnLimit:     80
+IndentCaseLabels: true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+BreakBeforeBraces: Allman
+AlignTrailingComments: true
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+UseTab:          Never
+---
+Language:        ObjC
+BasedOnStyle:    LLVM
+---
+Language:        Proto
+BasedOnStyle:    LLVM
+---
+Language:        CSharp
+BasedOnStyle:    LLVM
