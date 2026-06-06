@@ -3,8 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string_view>
 #include <type_traits>
+#include <variant>
 
 namespace AkRender::Shaders
 {
@@ -26,30 +28,40 @@ struct Record
   constexpr bool empty() const noexcept { return size == 0; }
 };
 
-/// Node kind discriminant.
-enum class NodeType : uint8_t
+/// Child index range for directory nodes.
+struct ChildRange
 {
-  File,       ///< node is a file (data field is meaningful)
-  Directory,  ///< node is a directory (first_child/num_children are meaningful)
+  std::size_t first_child;
+  std::size_t num_children;
 };
 
 /// A single node in the flat filesystem tree.
 ///
 /// Directories reference their children via index ranges into the owning
 /// VirtualFileSystem's node array, so the whole tree is one contiguous
-/// aggregate.
+/// aggregate.  The node kind (File vs Directory) is determined by which
+/// alternative of \c payload is active.
 struct Node
 {
-  std::string_view name;         ///< component name (not full path)
-  NodeType         type;         ///< File or Directory
-  std::size_t      first_child;  ///< Directory: start index of children
-  std::size_t      num_children; ///< Directory: number of children
-  Record           data;         ///< File: offset/size in the embedded blob
+  std::string_view                  name;    ///< component name (not full path)
+  std::variant<Record, ChildRange>  payload; ///< File\u2192Record, Directory\u2192ChildRange
 
-  constexpr bool is_file() const noexcept { return type == NodeType::File; }
+  constexpr bool is_file() const noexcept
+  {
+    return std::holds_alternative<Record>(payload);
+  }
   constexpr bool is_directory() const noexcept
   {
-    return type == NodeType::Directory;
+    return std::holds_alternative<ChildRange>(payload);
+  }
+
+  constexpr const Record& data() const noexcept
+  {
+    return std::get<Record>(payload);
+  }
+  constexpr const ChildRange& children() const noexcept
+  {
+    return std::get<ChildRange>(payload);
   }
 };
 
@@ -58,28 +70,42 @@ struct Node
 /// Stores a flat \c Node array – the whole tree is one aggregate initialiser.
 ///
 /// @code
+///   constexpr std::byte blob_data[] = { /* binary resource data */ };
+///
 ///   constexpr Node fs_nodes[] = {
 ///     // idx 0: root  "/"
-///     Node{"",             NodeType::Directory, 1, 2, {}},
+///     Node{"",               NodeType::Directory, ChildRange{1, 2}},
 ///     // idx 1
-///     Node{"manifest.json", NodeType::File,     0, 0, {448, 50}},
+///     Node{"manifest.json",  NodeType::File,      Record{448, 50}},
 ///     // idx 2: "/shaders/"
-///     Node{"shaders",      NodeType::Directory, 3, 3, {}},
+///     Node{"shaders",        NodeType::Directory, ChildRange{3, 3}},
 ///     // idx 3
-///     Node{"triangle.spv", NodeType::File,     0, 0, {0, 128}},
+///     Node{"triangle.spv",   NodeType::File,      Record{0, 128}},
 ///     // idx 4
-///     Node{"quad.spv",     NodeType::File,     0, 0, {128, 64}},
+///     Node{"quad.spv",       NodeType::File,      Record{128, 64}},
 ///     // idx 5: "/shaders/slang/"
-///     Node{"slang",        NodeType::Directory, 6, 1, {}},
+///     Node{"slang",          NodeType::Directory, ChildRange{6, 1}},
 ///     // idx 6
-///     Node{"math_utils.slang-module", NodeType::File, 0, 0, {192, 256}},
+///     Node{"math_utils.slang-module", NodeType::File, Record{192, 256}},
 ///   };
-///   constexpr VirtualFileSystem fs{fs_nodes};
+///   constexpr VirtualFileSystem fs{fs_nodes, blob_data};
 /// @endcode
 struct VirtualFileSystem
 {
-  const Node*    nodes;
-  std::size_t    num_nodes;
+  const Node*              nodes;
+  std::size_t              num_nodes;
+  std::span<const std::byte> blob;
+
+  // -- Data access ------------------------------------------------
+
+  /// Return the bytes referenced by a \c Record as a span.
+  constexpr std::span<const std::byte>
+  data(const Record& rec) const noexcept
+  {
+    if (rec.offset + rec.size > blob.size())
+      return {};
+    return blob.subspan(rec.offset, rec.size);
+  }
 
   // -- Lookup by std::string_view (constexpr, zero-alloc) ------------
 
@@ -105,9 +131,10 @@ struct VirtualFileSystem
 
       // Search children of nodes[cur] for a node named `comp`.
       const Node& dir = nodes[cur];
-      std::size_t child_end = dir.first_child + dir.num_children;
+      auto& dir_children = dir.children();
+      std::size_t child_end = dir_children.first_child + dir_children.num_children;
       std::size_t found     = child_end; // sentinel
-      for (std::size_t i = dir.first_child; i < child_end; ++i)
+      for (std::size_t i = dir_children.first_child; i < child_end; ++i)
       {
         if (nodes[i].name == comp)
         {
@@ -123,7 +150,7 @@ struct VirtualFileSystem
         return &nodes[found]; // last component – file or directory, either is OK
 
       // Intermediate component – must be a directory to continue.
-      if (nodes[found].type != NodeType::Directory)
+      if (!nodes[found].is_directory())
         return nullptr;
 
       cur  = found;
@@ -152,7 +179,7 @@ struct VirtualFileSystem
     auto* n = lookup(path);
     if (!n || !n->is_file())
       return Record{};
-    return n->data;
+    return n->data();
   }
 
   // -- Lookup by std::filesystem::path (runtime convenience) ---------

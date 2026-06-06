@@ -19,24 +19,26 @@ using namespace AkRender::Shaders;
 //  5      /shaders/slang/          (dir)   dir   children: [6]
 //  6      math_utils.slang-module          file
 
+constexpr std::byte dummy_blob[] = { std::byte{0} };
+
 constexpr Node fs_nodes[] = {
     // 0: root "/"
-    Node{"",             NodeType::Directory, 1, 2, {}},
+    Node{"",               ChildRange{1, 2}},
     // 1
-    Node{"manifest.json", NodeType::File,     0, 0, {448, 50}},
+    Node{"manifest.json",  Record{448, 50}},
     // 2: "/shaders/"
-    Node{"shaders",      NodeType::Directory, 3, 3, {}},
+    Node{"shaders",        ChildRange{3, 3}},
     // 3
-    Node{"triangle.spv", NodeType::File,     0, 0, {0, 128}},
+    Node{"triangle.spv",   Record{0, 128}},
     // 4
-    Node{"quad.spv",     NodeType::File,     0, 0, {128, 64}},
+    Node{"quad.spv",       Record{128, 64}},
     // 5: "/shaders/slang/"
-    Node{"slang",        NodeType::Directory, 6, 1, {}},
+    Node{"slang",          ChildRange{6, 1}},
     // 6
-    Node{"math_utils.slang-module", NodeType::File, 0, 0, {192, 256}},
+    Node{"math_utils.slang-module", Record{192, 256}},
 };
 
-constexpr VirtualFileSystem test_fs{fs_nodes, 7};
+constexpr VirtualFileSystem test_fs{fs_nodes, 7, dummy_blob};
 
 // ── Compile-time checks (static_assert) ─────────────────────────────────────
 
@@ -76,12 +78,12 @@ static_assert(test_fs.record("/nonexistent").empty());
 TEST(VirtualFileSystemTest, LookupFile)
 {
   ASSERT_NE(test_fs.lookup("/manifest.json"), nullptr);
-  EXPECT_EQ(test_fs.lookup("/manifest.json")->data.offset, 448);
-  EXPECT_EQ(test_fs.lookup("/manifest.json")->data.size, 50);
+  EXPECT_EQ(test_fs.lookup("/manifest.json")->data().offset, 448);
+  EXPECT_EQ(test_fs.lookup("/manifest.json")->data().size, 50);
 
   ASSERT_NE(test_fs.lookup("/shaders/triangle.spv"), nullptr);
-  EXPECT_EQ(test_fs.lookup("/shaders/triangle.spv")->data.offset, 0);
-  EXPECT_EQ(test_fs.lookup("/shaders/triangle.spv")->data.size, 128);
+  EXPECT_EQ(test_fs.lookup("/shaders/triangle.spv")->data().offset, 0);
+  EXPECT_EQ(test_fs.lookup("/shaders/triangle.spv")->data().size, 128);
 }
 
 TEST(VirtualFileSystemTest, LookupDirectory)
@@ -93,13 +95,13 @@ TEST(VirtualFileSystemTest, LookupDirectory)
   auto* shaders = test_fs.lookup_directory("/shaders");
   ASSERT_NE(shaders, nullptr);
   EXPECT_TRUE(shaders->is_directory());
-  EXPECT_EQ(shaders->num_children, 3u);
-  EXPECT_EQ(shaders->first_child, 3u);
+  EXPECT_EQ(shaders->children().num_children, 3u);
+  EXPECT_EQ(shaders->children().first_child, 3u);
 
   auto* slang = test_fs.lookup_directory("/shaders/slang");
   ASSERT_NE(slang, nullptr);
   EXPECT_TRUE(slang->is_directory());
-  EXPECT_EQ(slang->num_children, 1u);
+  EXPECT_EQ(slang->children().num_children, 1u);
 }
 
 TEST(VirtualFileSystemTest, LookupNonexistent)
@@ -133,13 +135,14 @@ TEST(VirtualFileSystemTest, ChildrenIteration)
   auto* shaders = test_fs.lookup_directory("/shaders");
   ASSERT_NE(shaders, nullptr);
 
-  for (std::size_t i = shaders->first_child;
-       i < shaders->first_child + shaders->num_children; ++i)
+  auto& sh_children = shaders->children();
+  for (std::size_t i = sh_children.first_child;
+       i < sh_children.first_child + sh_children.num_children; ++i)
   {
     bool found = false;
-    for (std::size_t j = 0; j < shaders->num_children; ++j)
+    for (std::size_t j = 0; j < sh_children.num_children; ++j)
     {
-      if (&fs_nodes[shaders->first_child + j] == &fs_nodes[i])
+      if (&fs_nodes[sh_children.first_child + j] == &fs_nodes[i])
       {
         found = true;
         break;
