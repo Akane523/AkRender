@@ -19,8 +19,6 @@ using namespace AkRender::Shaders;
 //  5      /shaders/slang/          (dir)   dir   children: [6]
 //  6      math_utils.slang-module          file
 
-constexpr std::byte dummy_blob[] = { std::byte{0} };
-
 constexpr Node fs_nodes[] = {
     // 0: root "/"
     Node{"",               ChildRange{1, 2}},
@@ -38,7 +36,7 @@ constexpr Node fs_nodes[] = {
     Node{"math_utils.slang-module", Record{192, 256}},
 };
 
-constexpr VirtualFileSystem test_fs{fs_nodes, 7, dummy_blob};
+constexpr VirtualFileSystem test_fs{fs_nodes, 7};
 
 // ── Compile-time checks (static_assert) ─────────────────────────────────────
 
@@ -158,6 +156,44 @@ TEST(VirtualFileSystemTest, NodeTypeChecks)
   EXPECT_TRUE(fs_nodes[1].is_file());
   EXPECT_TRUE(fs_nodes[2].is_directory());
   EXPECT_TRUE(fs_nodes[3].is_file());
+}
+
+// ── VirtualFileSystemView tests ─────────────────────────────────────────
+
+TEST(VirtualFileSystemTest, ViewRead)
+{
+  constexpr std::byte fake_blob[] = {
+      std::byte{0xAB},  // offset 0: triangle.spv starts here
+      std::byte{0xCD},
+      std::byte{0xEF},
+      std::byte{0x00},
+      std::byte{0x11},  // offset 128: quad.spv starts here
+      std::byte{0x22},
+  };
+
+  // Create a view with a tiny fake blob.
+  // triangle.spv -> Record{0, 128} – exceeds fake_blob → read returns empty
+  // quad.spv     -> Record{128, 64} – offset exceeds fake_blob → empty
+  const VirtualFileSystemView view{test_fs, fake_blob};
+
+  // File that fits within blob
+  auto rec = test_fs.record("/manifest.json");
+  ASSERT_FALSE(rec.empty());
+  EXPECT_EQ(rec.offset, 448u);
+  EXPECT_EQ(rec.size, 50u);
+
+  // read() for an existing file whose Record is out-of-bounds → empty
+  auto tri = view.read("/shaders/triangle.spv");
+  EXPECT_TRUE(tri.empty());
+
+  // read() for nonexistent path
+  auto none = view.read("/nonexistent");
+  EXPECT_TRUE(none.empty());
+
+  // Delegate methods still work
+  EXPECT_EQ(view.lookup("/"), &fs_nodes[0]);
+  EXPECT_TRUE(view.lookup_directory("/shaders")->is_directory());
+  EXPECT_EQ(view.record("/shaders/quad.spv").offset, 128u);
 }
 
 } // anonymous namespace

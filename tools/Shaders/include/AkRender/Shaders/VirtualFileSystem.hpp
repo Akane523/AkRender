@@ -65,47 +65,46 @@ struct Node
   }
 };
 
-/// The root virtual filesystem for embedded resources.
+/// A read-only virtual filesystem that maps path strings to embedded binary
+/// records via a flat node array.
 ///
-/// Stores a flat \c Node array – the whole tree is one aggregate initialiser.
+/// This is the **index tree only** — the actual binary resource data is stored
+/// separately (typically in a \c .cpp file).  Use \c record() to obtain a
+/// \c Record, then index into the blob manually:
+/// \code
+///   auto rec = fs.record("/shaders/triangle.spv");
+///   auto ptr = blob_data + rec.offset;  // -> const std::byte*
+/// \endcode
+///
+/// Because the tree is small (dozens of nodes, a few KB), it can be kept
+/// \c constexpr across translation units without the compilation overhead of
+/// the multi-megabyte binary blob.
 ///
 /// @code
-///   constexpr std::byte blob_data[] = { /* binary resource data */ };
-///
+///   // ShaderSet.hpp (inline constexpr, included by all TUs)
 ///   constexpr Node fs_nodes[] = {
-///     // idx 0: root  "/"
-///     Node{"",               NodeType::Directory, ChildRange{1, 2}},
-///     // idx 1
-///     Node{"manifest.json",  NodeType::File,      Record{448, 50}},
-///     // idx 2: "/shaders/"
-///     Node{"shaders",        NodeType::Directory, ChildRange{3, 3}},
-///     // idx 3
-///     Node{"triangle.spv",   NodeType::File,      Record{0, 128}},
-///     // idx 4
-///     Node{"quad.spv",       NodeType::File,      Record{128, 64}},
-///     // idx 5: "/shaders/slang/"
-///     Node{"slang",          NodeType::Directory, ChildRange{6, 1}},
-///     // idx 6
-///     Node{"math_utils.slang-module", NodeType::File, Record{192, 256}},
+///     Node{"",               ChildRange{1, 2}},
+///     Node{"manifest.json",  Record{448, 50}},
+///     Node{"shaders",        ChildRange{3, 3}},
+///     Node{"triangle.spv",   Record{0, 128}},
+///     Node{"quad.spv",       Record{128, 64}},
+///     Node{"slang",          ChildRange{6, 1}},
+///     Node{"math_utils.slang-module", Record{192, 256}},
 ///   };
-///   constexpr VirtualFileSystem fs{fs_nodes, blob_data};
+///   inline constexpr VirtualFileSystem shader_fs{fs_nodes, 7};
+///
+///   // ShaderSet.cpp (compiled once, contains the actual data)
+///   constexpr std::byte blob_data[] = { /* binary resource data */ };
+///   std::span<const std::byte> read_shader(std::string_view path) {
+///     auto rec = shader_fs.record(path);
+///     if (rec.empty()) return {};
+///     return {blob_data + rec.offset, rec.size};
+///   }
 /// @endcode
 struct VirtualFileSystem
 {
-  const Node*              nodes;
-  std::size_t              num_nodes;
-  std::span<const std::byte> blob;
-
-  // -- Data access ------------------------------------------------
-
-  /// Return the bytes referenced by a \c Record as a span.
-  constexpr std::span<const std::byte>
-  data(const Record& rec) const noexcept
-  {
-    if (rec.offset + rec.size > blob.size())
-      return {};
-    return blob.subspan(rec.offset, rec.size);
-  }
+  const Node*    nodes;
+  std::size_t    num_nodes;
 
   // -- Lookup by std::string_view (constexpr, zero-alloc) ------------
 
@@ -206,6 +205,95 @@ struct VirtualFileSystem
   {
     auto str = std::forward<PathT>(p).generic_string();
     return record(std::string_view{str});
+  }
+};
+
+// ---------------------------------------------------------------------------
+// VirtualFileSystemView — runtime view pairing an index tree with a blob
+//
+// While VirtualFileSystem is a compile-time index tree, VirtualFileSystemView
+// adds a runtime blob span so you can read file contents directly without
+// manually offsetting into the blob.
+//
+// Typical usage:
+// @code
+//   // .cpp (compiled once)
+//   constexpr std::byte blob[] = { ... };
+//   const VirtualFileSystemView fs_view{shader_fs, blob};
+//
+//   auto tri_data = fs_view.read("/shaders/triangle.spv");  // span
+//   auto rec      = fs_view.record("/shaders/quad.spv");    // constexpr if view is constexpr
+// @endcode
+// ---------------------------------------------------------------------------
+
+/// Runtime view that pairs a compile-time \c VirtualFileSystem with a
+/// \c std::span<const std::byte> blob, providing direct data access.
+class VirtualFileSystemView
+{
+  const VirtualFileSystem*        fs_;
+  std::span<const std::byte>      blob_;
+
+public:
+  constexpr VirtualFileSystemView(
+      const VirtualFileSystem& fs,
+      std::span<const std::byte> blob
+  ) noexcept
+      : fs_(&fs), blob_(blob)
+  {}
+
+  // -- Data access -------------------------------------------------
+
+  /// Read the content of a file by path.
+  /// Returns an empty span if the path does not exist or refers to a
+  /// directory.
+  std::span<const std::byte> read(std::string_view path) const noexcept
+  {
+    auto rec = fs_->record(path);
+    if (rec.empty())
+      return {};
+    if (rec.offset + rec.size > blob_.size())
+      return {};
+    return blob_.subspan(rec.offset, rec.size);
+  }
+
+  // -- Delegate to VirtualFileSystem -------------------------------
+
+  constexpr const Node* lookup(std::string_view path) const noexcept
+  {
+    return fs_->lookup(path);
+  }
+
+  constexpr const Node* lookup_directory(std::string_view path) const noexcept
+  {
+    return fs_->lookup_directory(path);
+  }
+
+  constexpr Record record(std::string_view path) const noexcept
+  {
+    return fs_->record(path);
+  }
+
+  // -- std::filesystem::path overloads ------------------------------
+
+  template <typename PathT>
+    requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
+  const Node* lookup(PathT&& p) const noexcept
+  {
+    return fs_->lookup(std::forward<PathT>(p));
+  }
+
+  template <typename PathT>
+    requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
+  const Node* lookup_directory(PathT&& p) const noexcept
+  {
+    return fs_->lookup_directory(std::forward<PathT>(p));
+  }
+
+  template <typename PathT>
+    requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
+  Record record(PathT&& p) const noexcept
+  {
+    return fs_->record(std::forward<PathT>(p));
   }
 };
 
