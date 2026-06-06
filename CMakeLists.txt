@@ -33,7 +33,7 @@ find_package(Stb REQUIRED)
 set(Stb_INCLUDE_DIR "${Stb_INCLUDE_DIR}" CACHE INTERNAL "STB include directory" FORCE)
 
 # AkRender Shader Manager
-add_subdirectory(tools/Shaders)
+add_subdirectory(tools/ShaderSet)
 
 # ── AkRender library ─────────────────────────────────────────────────────────
 # STATIC library: links all renderer dependencies + carries implementation code.

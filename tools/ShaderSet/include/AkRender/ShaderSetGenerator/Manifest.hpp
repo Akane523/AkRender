@@ -17,7 +17,7 @@
 #include <string_view>
 #include <vector>
 
-#include <AkRender/Shaders/SlangJIT.hpp>
+#include <AkRender/ShaderSet/SlangJIT.hpp>
 
 namespace AkRender::Shaders
 {

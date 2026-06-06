@@ -4,8 +4,8 @@
 #include <cstdint>
 #include <string_view>
 
-#include <AkRender/Shaders/SlangJIT.hpp>
-#include <AkRender/Shaders/VirtualFileSystem.hpp>
+#include <AkRender/ShaderSet/SlangJIT.hpp>
+#include <AkRender/ShaderSet/VirtualFileSystem.hpp>
 
 namespace AkRender::Shaders
 {
