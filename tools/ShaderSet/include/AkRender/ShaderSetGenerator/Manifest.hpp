@@ -12,15 +12,22 @@
 
 #include <filesystem>
 #include <memory>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <AkRender/ShaderSet/SlangJIT.hpp>
 
-namespace AkRender::ShaderSet
+namespace AkRender::ShaderSetGenerator
 {
+
+using AkRender::ShaderSet::CompileOptions;
+using AkRender::ShaderSet::FloatMode;
+using AkRender::ShaderSet::MatrixLayout;
+using AkRender::ShaderSet::OptimizationLevel;
+using AkRender::ShaderSet::PreprocessorDefine;
+using AkRender::ShaderSet::Stage;
+using AkRender::ShaderSet::TargetFormat;
 
 namespace Config
 {
@@ -124,9 +131,6 @@ struct SlangShader
 ///        set.
 class Manifest
 {
-  struct Impl;
-  std::unique_ptr<Impl> m_impl;
-
 public:
   /// \brief Constructs an empty manifest.
   Manifest();
@@ -137,15 +141,19 @@ public:
 
   /// \brief Adds a binary resource.
   /// \returns Pointer to the newly added entry (owned by the Manifest).
+  ///          The pointer remains valid after subsequent additions.
   Config::BinaryResource *add_binary_resource(std::string name);
   /// \brief Adds a SPIR-V shader.
   /// \returns Pointer to the newly added entry (owned by the Manifest).
+  ///          The pointer remains valid after subsequent additions.
   Config::SpirV_Shader *add_spirv_shader(std::string name);
   /// \brief Adds a Slang module.
   /// \returns Pointer to the newly added entry (owned by the Manifest).
+  ///          The pointer remains valid after subsequent additions.
   Config::SlangModule *add_slang_module(std::string name);
   /// \brief Adds a Slang shader.
   /// \returns Pointer to the newly added entry (owned by the Manifest).
+  ///          The pointer remains valid after subsequent additions.
   Config::SlangShader *add_slang_shader(std::string name);
 
   // --- Queries ------------------------------------------------------------
@@ -173,14 +181,18 @@ public:
   /// \brief Returns the number of registered Slang shaders.
   size_t num_slang_shaders() const;
 
-  /// \brief Returns a span of all binary resources.
-  std::span<const Config::BinaryResource> binary_resources() const;
-  /// \brief Returns a span of all SPIR-V shaders.
-  std::span<const Config::SpirV_Shader> spirv_shaders() const;
-  /// \brief Returns a span of all Slang modules.
-  std::span<const Config::SlangModule> slang_modules() const;
-  /// \brief Returns a span of all Slang shaders.
-  std::span<const Config::SlangShader> slang_shaders() const;
+  /// \brief Returns pointers to all binary resources.
+  std::vector<const Config::BinaryResource *> binary_resources() const;
+  /// \brief Returns pointers to all SPIR-V shaders.
+  std::vector<const Config::SpirV_Shader *> spirv_shaders() const;
+  /// \brief Returns pointers to all Slang modules.
+  std::vector<const Config::SlangModule *> slang_modules() const;
+  /// \brief Returns pointers to all Slang shaders.
+  std::vector<const Config::SlangShader *> slang_shaders() const;
+
+private:
+  struct Impl;
+  std::unique_ptr<Impl> m_impl;
 };
 
 // --- External interface ------------
@@ -191,4 +203,4 @@ public:
 /// generator.
 Manifest make_manifest();
 
-} // namespace AkRender::ShaderSet
+} // namespace AkRender::ShaderSetGenerator

@@ -7,18 +7,19 @@
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
 
 #include <algorithm>
+#include <deque>
 #include <string_view>
 #include <vector>
 
-namespace AkRender::ShaderSet
+namespace AkRender::ShaderSetGenerator
 {
 
 struct Manifest::Impl
 {
-  std::vector<Config::BinaryResource> binary_resources;
-  std::vector<Config::SpirV_Shader>   spirv_shaders;
-  std::vector<Config::SlangModule>    slang_modules;
-  std::vector<Config::SlangShader>    slang_shaders;
+  std::deque<Config::BinaryResource> binary_resources;
+  std::deque<Config::SpirV_Shader>   spirv_shaders;
+  std::deque<Config::SlangModule>    slang_modules;
+  std::deque<Config::SlangShader>    slang_shaders;
 };
 
 Manifest::Manifest()
@@ -27,6 +28,8 @@ Manifest::Manifest()
 }
 
 Manifest::~Manifest() = default;
+
+// --- Mutators --------------------------------------------------------------
 
 Config::BinaryResource *Manifest::add_binary_resource(std::string name)
 {
@@ -118,24 +121,40 @@ size_t Manifest::num_slang_shaders() const
   return m_impl->slang_shaders.size();
 }
 
-std::span<const Config::BinaryResource> Manifest::binary_resources() const
+std::vector<const Config::BinaryResource *> Manifest::binary_resources() const
 {
-  return m_impl->binary_resources;
+  std::vector<const Config::BinaryResource *> ptrs;
+  ptrs.reserve(m_impl->binary_resources.size());
+  for (const auto &item : m_impl->binary_resources)
+    ptrs.push_back(&item);
+  return ptrs;
 }
 
-std::span<const Config::SpirV_Shader> Manifest::spirv_shaders() const
+std::vector<const Config::SpirV_Shader *> Manifest::spirv_shaders() const
 {
-  return m_impl->spirv_shaders;
+  std::vector<const Config::SpirV_Shader *> ptrs;
+  ptrs.reserve(m_impl->spirv_shaders.size());
+  for (const auto &item : m_impl->spirv_shaders)
+    ptrs.push_back(&item);
+  return ptrs;
 }
 
-std::span<const Config::SlangModule> Manifest::slang_modules() const
+std::vector<const Config::SlangModule *> Manifest::slang_modules() const
 {
-  return m_impl->slang_modules;
+  std::vector<const Config::SlangModule *> ptrs;
+  ptrs.reserve(m_impl->slang_modules.size());
+  for (const auto &item : m_impl->slang_modules)
+    ptrs.push_back(&item);
+  return ptrs;
 }
 
-std::span<const Config::SlangShader> Manifest::slang_shaders() const
+std::vector<const Config::SlangShader *> Manifest::slang_shaders() const
 {
-  return m_impl->slang_shaders;
+  std::vector<const Config::SlangShader *> ptrs;
+  ptrs.reserve(m_impl->slang_shaders.size());
+  for (const auto &item : m_impl->slang_shaders)
+    ptrs.push_back(&item);
+  return ptrs;
 }
 
-} // namespace AkRender::ShaderSet
+} // namespace AkRender::ShaderSetGenerator

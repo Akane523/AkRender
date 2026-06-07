@@ -1,8 +1,10 @@
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
-#include <AkRender/ShaderSetGenerator/ShaderCompiler.hpp>
+#include <filesystem>
 
-using AkRender::ShaderSet::make_manifest;
-using AkRender::ShaderSet::Manifest;
+namespace fs = std::filesystem;
+
+using AkRender::ShaderSetGenerator::make_manifest;
+using AkRender::ShaderSetGenerator::Manifest;
 
 struct ShaderSetGenerator
 {
@@ -18,6 +20,7 @@ struct ShaderSetGenerator
   void generate_resource_config();
 
   Manifest m_manifest;
+
 };
 
 int main()
