@@ -14,9 +14,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
-#include <AkRender/ShaderSet/SlangJIT.hpp>
+#include <AkRender/SlangJIT/SlangJIT.hpp>
 
 namespace AkRender::ShaderSetGenerator
 {
@@ -32,12 +33,20 @@ using AkRender::ShaderSet::TargetFormat;
 namespace Config
 {
 
-/// \brief Determines how a resource is located at build time.
-enum class ResourceSeekType
+/// \brief Configuration for embedding a resource into the shader set.
+///
+/// The resource is copied into the shader set binary at build time, and could
+/// be accessed by VirutalFileSystem at runtime.
+struct Embed
 {
-  /// The resource content is embedded directly into the output.
-  Embed,
+  /// The path of VirutalFileSystem where the resource will be embedded.
+  /// If the path is empty, the resource is embedded at the root of the virtual
+  /// file system.
+  std::filesystem::path virtual_path{};
 };
+
+/// \brief Determines how a resource is located at build time.
+using ResourceSeekType = std::variant<std::monostate, Embed>;
 
 /// \brief Describes a binary resource to be embedded into or referenced from
 ///        the shader set.
@@ -48,7 +57,7 @@ struct BinaryResource
   /// Path to the source file on disk.
   std::filesystem::path source_path;
   /// How this resource is located during the build.
-  ResourceSeekType seek_type = ResourceSeekType::Embed;
+  ResourceSeekType seek_type = Embed{};
 };
 
 /// \brief Describes a pre-compiled SPIR-V shader with its entry point.
@@ -61,7 +70,7 @@ struct SpirV_Shader
   /// Name of the entry-point function (e.g. \p "main").
   std::string entry_point = "main";
   /// How this shader is located during the build.
-  ResourceSeekType seek_type = ResourceSeekType::Embed;
+  ResourceSeekType seek_type = Embed{};
 };
 
 /// \brief Describes a Slang module to be compiled.
@@ -122,7 +131,7 @@ struct SlangShader
   /// can be compiled.  The names are compared against SlangModule::name.
   std::vector<std::string> dependencies;
   /// How this shader is located during the build.
-  ResourceSeekType seek_type = ResourceSeekType::Embed;
+  ResourceSeekType seek_type = Embed{};
 };
 
 } // namespace Config
@@ -134,7 +143,7 @@ class Manifest
 public:
   /// \brief Constructs an empty manifest.
   Manifest();
-  Manifest(Manifest &&) noexcept = default;
+  Manifest(Manifest &&) noexcept;
   ~Manifest();
 
   // --- Mutators -----------------------------------------------------------

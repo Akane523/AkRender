@@ -17,16 +17,16 @@ namespace AkRender::ShaderSetGenerator
 struct Manifest::Impl
 {
   std::deque<Config::BinaryResource> binary_resources;
-  std::deque<Config::SpirV_Shader>   spirv_shaders;
-  std::deque<Config::SlangModule>    slang_modules;
-  std::deque<Config::SlangShader>    slang_shaders;
+  std::deque<Config::SpirV_Shader> spirv_shaders;
+  std::deque<Config::SlangModule> slang_modules;
+  std::deque<Config::SlangShader> slang_shaders;
 };
 
-Manifest::Manifest()
-  : m_impl(std::make_unique<Impl>())
+Manifest::Manifest() : m_impl(std::make_unique<Impl>())
 {
 }
 
+Manifest::Manifest(Manifest &&) noexcept = default;
 Manifest::~Manifest() = default;
 
 // --- Mutators --------------------------------------------------------------
@@ -61,8 +61,8 @@ Config::SlangShader *Manifest::add_slang_shader(std::string name)
 
 // --- Queries ----------------------------------------------------------------
 
-const Config::BinaryResource *Manifest::find_binary_resource(
-    std::string_view name) const
+const Config::BinaryResource *
+Manifest::find_binary_resource(std::string_view name) const
 {
   auto it = std::ranges::find(m_impl->binary_resources, name,
                               &Config::BinaryResource::name);
@@ -71,8 +71,8 @@ const Config::BinaryResource *Manifest::find_binary_resource(
   return nullptr;
 }
 
-const Config::SpirV_Shader *Manifest::find_spirv_shader(
-    std::string_view name) const
+const Config::SpirV_Shader *
+Manifest::find_spirv_shader(std::string_view name) const
 {
   auto it = std::ranges::find(m_impl->spirv_shaders, name,
                               &Config::SpirV_Shader::name);
@@ -81,8 +81,8 @@ const Config::SpirV_Shader *Manifest::find_spirv_shader(
   return nullptr;
 }
 
-const Config::SlangModule *Manifest::find_slang_module(
-    std::string_view name) const
+const Config::SlangModule *
+Manifest::find_slang_module(std::string_view name) const
 {
   auto it = std::ranges::find(m_impl->slang_modules, name,
                               &Config::SlangModule::name);
@@ -91,8 +91,8 @@ const Config::SlangModule *Manifest::find_slang_module(
   return nullptr;
 }
 
-const Config::SlangShader *Manifest::find_slang_shader(
-    std::string_view name) const
+const Config::SlangShader *
+Manifest::find_slang_shader(std::string_view name) const
 {
   auto it = std::ranges::find(m_impl->slang_shaders, name,
                               &Config::SlangShader::name);

@@ -10,6 +10,8 @@
     "glm",
     "spdlog",
     "stb",
-    "gtest"
+    "gtest",
+    "inja",
+    "cli11"
   ]
 }

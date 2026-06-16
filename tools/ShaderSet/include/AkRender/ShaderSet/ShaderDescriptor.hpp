@@ -4,8 +4,8 @@
 #include <cstdint>
 #include <string_view>
 
-#include <AkRender/ShaderSet/SlangJIT.hpp>
 #include <AkRender/ShaderSet/VirtualFileSystem.hpp>
+#include <AkRender/SlangJIT/SlangJIT.hpp>
 
 namespace AkRender::ShaderSet
 {
@@ -15,6 +15,7 @@ namespace AkRender::ShaderSet
 // ═════════════════════════════════════════════════════════════════════════════
 
 struct SlangModule;
+class SlangJITCompiler;
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  SlangModule — pre-compiled module descriptor
@@ -63,8 +64,10 @@ struct SlangModule
 // touches raw .slang source; it only calls loadModuleFromIRBlob().
 //
 // Runtime JIT flow (using the Slang API):
-//   1. Load dependent modules:  session->loadModuleFromIRBlob(mod.name, data, ...)
-//   2. Load shader IR:          session->loadModuleFromIRBlob("shader", data, ...)
+//   1. Load dependent modules:  session->loadModuleFromIRBlob(mod.name, data,
+//   ...)
+//   2. Load shader IR:          session->loadModuleFromIRBlob("shader", data,
+//   ...)
 //   3. Find entry-point:        module->findEntryPointByName("main")
 //   4. Compose + link:          session->createCompositeComponentType(...)
 //   5. Generate target code:    composite->getEntryPointCode(0, 0, &spirvBlob)
@@ -85,7 +88,7 @@ struct SlangShader
   Stage stage;
 
   /// Pointer to the first dependent SlangModule, or nullptr if none.
-  const SlangModule* module_deps;
+  const SlangModule *module_deps;
 
   /// Number of entries in module_deps.
   uint8_t num_module_deps;
@@ -114,5 +117,31 @@ struct SpirV_Shader
   /// Pipeline stage this shader targets.
   Stage stage;
 };
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  compileSlangShader — ShaderSet ↔ SlangJIT bridge
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Resolves a SlangShader descriptor against an embedded data blob at runtime
+// and JIT-compiles it to SPIR-V.
+//
+// Usage:
+//   SlangJITCompiler jit;
+//   jit.createSession({}, {}, shader.options);
+//   auto result = compileSlangShader(jit, shader, blobData);
+//
+// Internally this:
+//   1. Loads each SlangModule dependency via loadModuleFromIR().
+//   2. Loads the shader's own .slang-module IR.
+//   3. Calls compileEntryPoint(shader.entry_point).
+//
+/// @param compiler   Pre-configured SlangJITCompiler with an active session.
+/// @param shader     The SlangShader descriptor to compile.
+/// @param blobData   Base pointer to the embedded data blob (Record offsets
+///                   are relative to this pointer).
+/// @return Compiled SPIR-V binary and diagnostics.
+CompileResult compileSlangShader(SlangJITCompiler &compiler,
+                                 const SlangShader &shader,
+                                 const void *blobData);
 
 } // namespace AkRender::ShaderSet
