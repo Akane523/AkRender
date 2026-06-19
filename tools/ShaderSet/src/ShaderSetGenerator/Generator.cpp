@@ -137,8 +137,76 @@ struct ShaderSetGenerator
 
   // ── main entry points ──────────────────────────────────────────────
 
-  void generate();
-  void generate_resource_config();
+  void generate()
+  {
+    using namespace std::string_literals;
+
+    // ── Validate output directory ─────────────────────────────────────
+    if (m_binary_dir.empty())
+      m_binary_dir = m_source_dir;
+
+    fs::create_directories(m_binary_dir);
+
+    // ── collect binary resources from manifest ────────────────────
+    log_verbose("collecting binary resources …");
+    auto resources = collect_binary_resources();
+    if (resources.empty())
+    {
+      log_verbose("No embedded binary resources found — nothing to generate.");
+      return;
+    }
+
+    // ── build VFS nodes (flat array) ──────────────────────────────
+    log_verbose("building VFS node tree …");
+    auto nodes = build_vfs_nodes(resources);
+
+    // ── concatenate blob, assign offsets ──────────────────────────
+    log_verbose("concatenating binary blob …");
+    auto blob = concatenate_blob(resources);
+
+    // ── render templates ──────────────────────────────────────────
+    log_verbose("rendering generated sources …");
+
+    const auto hpp_filename = m_shader_set_name + ".hpp"s;
+
+    render_header(nodes, hpp_filename);
+    render_source(blob, hpp_filename);
+
+    // ── populate depfile ─────────────────────────────────────────
+    if (!m_depfile_path.empty())
+    {
+      m_depfile.clear();
+
+      const auto cpp_filename =
+          hpp_filename.substr(0, hpp_filename.find_last_of('.')) + ".cpp";
+      const fs::path hpp_out = m_binary_dir / hpp_filename;
+      const fs::path cpp_out = m_binary_dir / cpp_filename;
+
+      for (const Config::BinaryResource *entry : m_manifest.binary_resources())
+      {
+        if (!std::holds_alternative<Config::Embed>(entry->seek_type))
+          continue;
+
+        fs::path src = entry->source_path;
+        if (src.is_relative())
+          src = m_source_dir / src;
+
+        m_depfile[hpp_out].push_back(src);
+        m_depfile[cpp_out].push_back(src);
+      }
+
+      write_depfile();
+    }
+
+    if (m_verbose_output)
+    {
+      std::ostringstream oss;
+      oss << "  generated " << (m_binary_dir / hpp_filename).string() << "  ("
+          << nodes.size() << " VFS node(s), " << blob.size()
+          << " blob byte(s))";
+      log_verbose(oss.str());
+    }
+  }
 
   // ── data ────────────────────────────────────────────────────────────
 
@@ -148,370 +216,304 @@ struct ShaderSetGenerator
   fs::path m_template_dir;
   std::string m_shader_set_name;
   bool m_verbose_output = false;
+  fs::path m_depfile_path; ///< Path for generated .d depfile (empty = skip)
+
+  using depfile_t = std::map<fs::path, std::vector<fs::path>>;
+  depfile_t m_depfile; ///< maps output files to their source dependencies (for build system integration)
 
 private:
   // ── pipeline stages ─────────────────────────────────────────────────
 
-  std::vector<ResourceInput> collect_binary_resources();
-  std::vector<inja::json>
-  build_vfs_nodes(const std::vector<ResourceInput> &resources);
-  std::vector<std::byte>
-  concatenate_blob(std::vector<ResourceInput> &resources);
-  void render_header(const std::vector<inja::json> &nodes,
-                     const std::string &hpp_filename);
-  void render_source(const std::vector<std::byte> &blob,
-                     const std::string &hpp_filename);
-
-  // ── helpers ─────────────────────────────────────────────────────────
-
-  inja::json make_template_data(const std::vector<inja::json> &nodes);
-  std::string read_file_to_string(const fs::path &path);
-  void log_verbose(std::string_view msg) const;
-};
-
-// ═════════════════════════════════════════════════════════════════════
-//  generate_resource_config  (stub)
-// ═════════════════════════════════════════════════════════════════════
-
-void ShaderSetGenerator::generate_resource_config()
-{
-  // TODO: (future) generate per-resource shader compile configurations
-}
-
-// ═════════════════════════════════════════════════════════════════════
-//  generate  —  main pipeline
-// ═════════════════════════════════════════════════════════════════════
-
-void ShaderSetGenerator::generate()
-{
-  using namespace std::string_literals;
-
-  // ── Validate output directory ─────────────────────────────────────
-  if (m_binary_dir.empty())
-    m_binary_dir = m_source_dir;
-
-  fs::create_directories(m_binary_dir);
-
-  // ── collect binary resources from manifest ────────────────────
-  log_verbose("collecting binary resources …");
-  auto resources = collect_binary_resources();
-  if (resources.empty())
+  std::vector<ResourceInput> collect_binary_resources()
   {
-    log_verbose("No embedded binary resources found — nothing to generate.");
-    return;
-  }
+    std::vector<ResourceInput> resources;
 
-  // ── build VFS nodes (flat array) ──────────────────────────────
-  log_verbose("building VFS node tree …");
-  auto nodes = build_vfs_nodes(resources);
-
-  // ── concatenate blob, assign offsets ──────────────────────────
-  log_verbose("concatenating binary blob …");
-  auto blob = concatenate_blob(resources);
-
-  // ── render templates ──────────────────────────────────────────
-  log_verbose("rendering generated sources …");
-
-  const auto hpp_filename = m_shader_set_name + ".hpp"s;
-
-  render_header(nodes, hpp_filename);
-  render_source(blob, hpp_filename);
-
-  if (m_verbose_output)
-  {
-    std::ostringstream oss;
-    oss << "  generated " << (m_binary_dir / hpp_filename).string() << "  ("
-        << nodes.size() << " VFS node(s), " << blob.size() << " blob byte(s))";
-    log_verbose(oss.str());
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════
-//  collect_binary_resources
-// ═════════════════════════════════════════════════════════════════════
-
-std::vector<ResourceInput> ShaderSetGenerator::collect_binary_resources()
-{
-  std::vector<ResourceInput> resources;
-
-  for (const Config::BinaryResource *entry : m_manifest.binary_resources())
-  {
-    // Only handle Embedded resources for now
-    if (!std::holds_alternative<Config::Embed>(entry->seek_type))
-      continue;
-
-    const auto &embed = std::get<Config::Embed>(entry->seek_type);
-
-    // Determine virtual path
-    std::string vpath;
-    if (!embed.virtual_path.empty())
+    for (const Config::BinaryResource *entry : m_manifest.binary_resources())
     {
-      vpath = embed.virtual_path.generic_string();
-    }
-    else
-    {
-      // Default: place at root with the resource name
-      vpath = "/" + entry->name;
-    }
+      // Only handle Embedded resources for now
+      if (!std::holds_alternative<Config::Embed>(entry->seek_type))
+        continue;
 
-    // Ensure path starts with '/'
-    if (vpath.empty() || vpath.front() != '/')
-      vpath = "/" + vpath;
+      const auto &embed = std::get<Config::Embed>(entry->seek_type);
 
-    // Read source file
-    fs::path abs_source = entry->source_path;
-    if (abs_source.is_relative())
-      abs_source = m_source_dir / abs_source;
-
-    std::ifstream ifs(abs_source, std::ios::binary | std::ios::ate);
-    if (!ifs)
-    {
-      if (m_verbose_output)
+      // Determine virtual path
+      std::string vpath;
+      if (!embed.virtual_path.empty())
       {
-        std::ostringstream oss;
-        oss << "Warning: cannot open binary resource \"" << entry->name
-            << "\" at " << abs_source.string();
-        log_verbose(oss.str());
+        vpath = embed.virtual_path.generic_string();
       }
-      continue;
-    }
-
-    const auto sz = ifs.tellg();
-    ifs.seekg(0, std::ios::beg);
-
-    std::vector<std::byte> data(static_cast<std::size_t>(sz));
-    ifs.read(reinterpret_cast<char *>(data.data()),
-             static_cast<std::streamsize>(sz));
-
-    resources.push_back({
-        .name = entry->name,
-        .vfs_path = std::move(vpath),
-        .data = std::move(data),
-    });
-
-    if (m_verbose_output)
-    {
-      std::ostringstream oss;
-      oss << "  \"" << resources.back().name << "\" → "
-          << resources.back().vfs_path << "  (" << resources.back().data.size()
-          << " bytes)";
-      log_verbose(oss.str());
-    }
-  }
-
-  return resources;
-}
-
-// ═════════════════════════════════════════════════════════════════════
-//  build_vfs_nodes
-// ═════════════════════════════════════════════════════════════════════
-
-std::vector<inja::json>
-ShaderSetGenerator::build_vfs_nodes(const std::vector<ResourceInput> &resources)
-{
-  if (resources.empty())
-    return {};
-
-  // ── Build trie from virtual paths ────────────────────────────────
-  std::vector<TrieNode> trie;
-  trie.push_back(TrieNode{.component = ""}); // root (index 0)
-
-  for (std::size_t ri = 0; ri < resources.size(); ++ri)
-  {
-    std::string_view path = resources[ri].vfs_path;
-
-    // Skip leading '/'
-    if (!path.empty() && path.front() == '/')
-      path.remove_prefix(1);
-
-    if (path.empty())
-    {
-      // Resource at root — treat as direct child of root
-      trie[0].children[resources[ri].name] = trie.size();
-      trie.push_back(TrieNode{
-          .component = resources[ri].name,
-          .is_file = true,
-          .resource_index = ri,
-      });
-      continue;
-    }
-
-    // Walk / create path components
-    std::size_t cur = 0; // root
-    std::size_t pos = 0;
-    while (pos < path.size())
-    {
-      auto slash = path.find('/', pos);
-      auto comp = (slash == std::string_view::npos)
-                      ? path.substr(pos)
-                      : path.substr(pos, slash - pos);
-
-      if (comp.empty())
+      else
       {
-        pos = slash + 1;
+        // Default: place at root with the resource name
+        vpath = "/" + entry->name;
+      }
+
+      // Ensure path starts with '/'
+      if (vpath.empty() || vpath.front() != '/')
+        vpath = "/" + vpath;
+
+      // Read source file
+      fs::path abs_source = entry->source_path;
+      if (abs_source.is_relative())
+        abs_source = m_source_dir / abs_source;
+
+      std::ifstream ifs(abs_source, std::ios::binary | std::ios::ate);
+      if (!ifs)
+      {
+        if (m_verbose_output)
+        {
+          std::ostringstream oss;
+          oss << "Warning: cannot open binary resource \"" << entry->name
+              << "\" at " << abs_source.string();
+          log_verbose(oss.str());
+        }
         continue;
       }
 
-      std::string comp_str(comp);
-      auto &child_map = trie[cur].children;
+      const auto sz = ifs.tellg();
+      ifs.seekg(0, std::ios::beg);
 
-      if (auto it = child_map.find(comp_str); it != child_map.end())
-      {
-        cur = it->second;
-      }
-      else
-      {
-        // Create intermediate directory node
-        std::size_t new_idx = trie.size();
-        child_map[comp_str] = new_idx;
-        cur = new_idx;
-        trie.push_back(TrieNode{.component = comp_str});
-      }
+      std::vector<std::byte> data(static_cast<std::size_t>(sz));
+      ifs.read(reinterpret_cast<char *>(data.data()),
+               static_cast<std::streamsize>(sz));
 
-      pos = (slash == std::string_view::npos) ? path.size() : slash + 1;
+      resources.push_back({
+          .name = entry->name,
+          .vfs_path = std::move(vpath),
+          .data = std::move(data),
+      });
 
-      // Last component → file
-      if (slash == std::string_view::npos)
+      if (m_verbose_output)
       {
-        trie[cur].is_file = true;
-        trie[cur].resource_index = ri;
+        std::ostringstream oss;
+        oss << "  \"" << resources.back().name << "\" → "
+            << resources.back().vfs_path << "  ("
+            << resources.back().data.size() << " bytes)";
+        log_verbose(oss.str());
       }
     }
+
+    return resources;
   }
 
-  // ── Flatten trie to json Node array (DFS) ────────────────────────
-  std::vector<inja::json> out_nodes;
-  flatten_dfs(trie, 0, out_nodes, resources);
-
-  return out_nodes;
-}
-
-// ═════════════════════════════════════════════════════════════════════
-//  concatenate_blob
-// ═════════════════════════════════════════════════════════════════════
-
-std::vector<std::byte>
-ShaderSetGenerator::concatenate_blob(std::vector<ResourceInput> &resources)
-{
-  // Compute total size
-  std::size_t total = 0;
-  for (const auto &r : resources)
-    total += r.data.size();
-
-  std::vector<std::byte> blob;
-  blob.reserve(total);
-
-  std::size_t offset = 0;
-  for (auto &r : resources)
+  std::vector<inja::json>
+  build_vfs_nodes(const std::vector<ResourceInput> &resources)
   {
-    r.blob_offset = offset;
-    blob.insert(blob.end(), r.data.begin(), r.data.end());
-    offset += r.data.size();
-  }
+    if (resources.empty())
+      return {};
 
-  return blob;
-}
+    // ── Build trie from virtual paths ────────────────────────────────
+    std::vector<TrieNode> trie;
+    trie.push_back(TrieNode{.component = ""}); // root (index 0)
 
-// ═════════════════════════════════════════════════════════════════════
-//  render_header
-// ═════════════════════════════════════════════════════════════════════
-
-void ShaderSetGenerator::render_header(const std::vector<inja::json> &nodes,
-                                       const std::string &hpp_filename)
-{
-  auto data = make_template_data(nodes);
-
-  // ── Render via inja (Environment resolves template path) ──────────
-  inja::Environment env(m_template_dir.string() + "/");
-  std::string rendered = env.render_file("ShaderSet.hpp.inja", data);
-
-  fs::path out_path = m_binary_dir / hpp_filename;
-  std::ofstream ofs(out_path);
-  ofs << rendered;
-}
-
-// ═════════════════════════════════════════════════════════════════════
-//  render_source
-// ═════════════════════════════════════════════════════════════════════
-
-void ShaderSetGenerator::render_source(const std::vector<std::byte> &blob,
-                                       const std::string &hpp_filename)
-{
-  using namespace std::string_literals;
-
-  auto data = make_template_data({});
-  // make_template_data filled in fs_var / blob_accessor etc.
-  // We just need to override extra fields:
-  data["hpp_filename"] = hpp_filename;
-  data["blob_bytes"] = blob.empty() ? ""s : format_blob_bytes(blob);
-
-  // ── Render via inja ───────────────────────────────────────────────
-  inja::Environment env(m_template_dir.string() + "/");
-  std::string rendered = env.render_file("ShaderSet.cpp.inja", data);
-
-  auto cpp_filename =
-      hpp_filename.substr(0, hpp_filename.find_last_of('.')) + ".cpp";
-  fs::path out_path = m_binary_dir / cpp_filename;
-  std::ofstream ofs(out_path);
-  ofs << rendered;
-}
-
-// ═════════════════════════════════════════════════════════════════════
-//  Template data helpers
-// ═════════════════════════════════════════════════════════════════════
-
-inja::json
-ShaderSetGenerator::make_template_data(const std::vector<inja::json> &nodes)
-{
-  using namespace std::string_literals;
-
-  auto safe_name = [](const std::string &raw) -> std::string
-  {
-    std::string out;
-    for (char ch : raw)
+    for (std::size_t ri = 0; ri < resources.size(); ++ri)
     {
-      if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_')
-        out.push_back(ch);
-      else
-        out.push_back('_');
+      std::string_view path = resources[ri].vfs_path;
+
+      // Skip leading '/'
+      if (!path.empty() && path.front() == '/')
+        path.remove_prefix(1);
+
+      if (path.empty())
+      {
+        // Resource at root — treat as direct child of root
+        trie[0].children[resources[ri].name] = trie.size();
+        trie.push_back(TrieNode{
+            .component = resources[ri].name,
+            .is_file = true,
+            .resource_index = ri,
+        });
+        continue;
+      }
+
+      // Walk / create path components
+      std::size_t cur = 0; // root
+      std::size_t pos = 0;
+      while (pos < path.size())
+      {
+        auto slash = path.find('/', pos);
+        auto comp = (slash == std::string_view::npos)
+                        ? path.substr(pos)
+                        : path.substr(pos, slash - pos);
+
+        if (comp.empty())
+        {
+          pos = slash + 1;
+          continue;
+        }
+
+        std::string comp_str(comp);
+        auto &child_map = trie[cur].children;
+
+        if (auto it = child_map.find(comp_str); it != child_map.end())
+        {
+          cur = it->second;
+        }
+        else
+        {
+          // Create intermediate directory node
+          std::size_t new_idx = trie.size();
+          child_map[comp_str] = new_idx;
+          cur = new_idx;
+          trie.push_back(TrieNode{.component = comp_str});
+        }
+
+        pos = (slash == std::string_view::npos) ? path.size() : slash + 1;
+
+        // Last component → file
+        if (slash == std::string_view::npos)
+        {
+          trie[cur].is_file = true;
+          trie[cur].resource_index = ri;
+        }
+      }
     }
-    if (out.empty())
-      out = "shader_set";
-    return out;
-  };
 
-  std::string ident = safe_name(m_shader_set_name);
+    // ── Flatten trie to json Node array (DFS) ────────────────────────
+    std::vector<inja::json> out_nodes;
+    flatten_dfs(trie, 0, out_nodes, resources);
 
-  return {
-      {"shader_set_name", m_shader_set_name},
-      {"namespace_name", ident},
-      {"node_count", nodes.size()},
-      {"fs_var", ident + "_fs"},
-      {"blob_var", ident + "_blob"},
-      {"view_var",        ident + "_view"},
-      {"nodes", nodes},
-  };
-}
+    return out_nodes;
+  }
 
-std::string ShaderSetGenerator::read_file_to_string(const fs::path &path)
-{
-  std::ifstream ifs(path);
-  if (!ifs)
-    return {};
-  std::ostringstream oss;
-  oss << ifs.rdbuf();
-  return oss.str();
-}
+  std::vector<std::byte> concatenate_blob(std::vector<ResourceInput> &resources)
+  {
+    // Compute total size
+    std::size_t total = 0;
+    for (const auto &r : resources)
+      total += r.data.size();
 
-void ShaderSetGenerator::log_verbose(std::string_view msg) const
-{
-  if (m_verbose_output)
-    std::cerr << msg << '\n';
-}
+    std::vector<std::byte> blob;
+    blob.reserve(total);
 
-// ═════════════════════════════════════════════════════════════════════
-//  main
-// ═════════════════════════════════════════════════════════════════════
+    std::size_t offset = 0;
+    for (auto &r : resources)
+    {
+      r.blob_offset = offset;
+      blob.insert(blob.end(), r.data.begin(), r.data.end());
+      offset += r.data.size();
+    }
+
+    return blob;
+  }
+
+  void render_header(const std::vector<inja::json> &nodes,
+                     const std::string &hpp_filename)
+  {
+    auto data = make_template_data(nodes);
+
+    // ── Render via inja (Environment resolves template path) ──────────
+    inja::Environment env(m_template_dir.string() + "/");
+    std::string rendered = env.render_file("ShaderSet.hpp.inja", data);
+
+    fs::path out_path = m_binary_dir / hpp_filename;
+    std::ofstream ofs(out_path);
+    ofs << rendered;
+  }
+
+  void render_source(const std::vector<std::byte> &blob,
+                     const std::string &hpp_filename)
+  {
+    using namespace std::string_literals;
+
+    auto data = make_template_data({});
+    // make_template_data filled in fs_var / blob_accessor etc.
+    // We just need to override extra fields:
+    data["hpp_filename"] = hpp_filename;
+    data["blob_bytes"] = blob.empty() ? ""s : format_blob_bytes(blob);
+
+    // ── Render via inja ───────────────────────────────────────────────
+    inja::Environment env(m_template_dir.string() + "/");
+    std::string rendered = env.render_file("ShaderSet.cpp.inja", data);
+
+    auto cpp_filename =
+        hpp_filename.substr(0, hpp_filename.find_last_of('.')) + ".cpp";
+    fs::path out_path = m_binary_dir / cpp_filename;
+    std::ofstream ofs(out_path);
+    ofs << rendered;
+  }
+
+  // ── helpers ─────────────────────────────────────────────────────────
+
+  inja::json make_template_data(const std::vector<inja::json> &nodes)
+  {
+    using namespace std::string_literals;
+
+    auto safe_name = [](const std::string &raw) -> std::string
+    {
+      std::string out;
+      for (char ch : raw)
+      {
+        if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_')
+          out.push_back(ch);
+        else
+          out.push_back('_');
+      }
+      if (out.empty())
+        out = "shader_set";
+      return out;
+    };
+
+    std::string ident = safe_name(m_shader_set_name);
+
+    return {
+        {"shader_set_name", m_shader_set_name},
+        {"namespace_name", ident},
+        {"node_count", nodes.size()},
+        {"fs_var", ident + "_fs"},
+        {"blob_var", ident + "_blob"},
+        {"view_var", ident + "_view"},
+        {"nodes", nodes},
+    };
+  }
+
+  std::string read_file_to_string(const fs::path &path)
+  {
+    std::ifstream ifs(path);
+    if (!ifs)
+      return {};
+    std::ostringstream oss;
+    oss << ifs.rdbuf();
+    return oss.str();
+  }
+
+  void log_verbose(std::string_view msg) const
+  {
+    if (m_verbose_output)
+      std::cerr << msg << '\n';
+  }
+
+  void write_depfile()
+  {
+    if (m_depfile_path.empty())
+      return;
+
+    fs::create_directories(m_depfile_path.parent_path());
+
+    std::ofstream ofs(m_depfile_path);
+    if (!ofs)
+    {
+      if (m_verbose_output)
+        std::cerr << "Warning: cannot write depfile at "
+                  << m_depfile_path.string() << '\n';
+      return;
+    }
+
+    auto quote_path = [](const fs::path &p) -> std::string
+    {
+      auto s = p.generic_string();
+      return (s.find(' ') != std::string::npos) ? ('"' + s + '"') : s;
+    };
+
+    for (const auto &[target, deps] : m_depfile)
+    {
+      ofs << quote_path(target) << ':';
+      for (const auto &dep : deps)
+        ofs << ' ' << quote_path(dep);
+      ofs << '\n';
+    }
+  }
+};
 
 int main(int argc, char **argv)
 {
@@ -527,10 +529,12 @@ int main(int argc, char **argv)
 
   app.add_option("-s,--source-dir", source_dir,
                  "Source directory containing shader files")
-      ->check(CLI::ExistingDirectory);
+      ->check(CLI::ExistingDirectory)
+      ->default_val(fs::current_path());
 
   app.add_option("-b,--binary-dir", binary_dir,
-                 "Output directory for generated shader artifacts");
+                 "Output directory for generated shader artifacts")
+      ->default_val(fs::current_path());
 
   app.add_option("-c,--config", config_file,
                  "Path to manifest configuration file (JSON)");
@@ -540,9 +544,17 @@ int main(int argc, char **argv)
       ->required();
 
   app.add_option("-t,--template-dir", template_dir,
-                 "Directory containing inja templates");
+                 "Directory containing inja templates")
+      ->default_str("<source-dir>/template");
 
   app.add_flag("-v,--verbose", verbose, "Enable verbose output");
+
+  fs::path depfile_path;
+  app.add_option("--depfile", depfile_path,
+                 "Path for generated dependency file (.d format). "
+                 "Default: <name>.d under --binary-dir. "
+                 "If relative, resolved against --binary-dir.")
+      ->default_str("<name>.d");
 
   // Set version
   app.set_version_flag("--version", "0.1.0");
@@ -550,12 +562,22 @@ int main(int argc, char **argv)
   CLI11_PARSE(app, argc, argv);
 
   ShaderSetGenerator generator{};
-  generator.m_source_dir = source_dir.empty() ? fs::current_path() : source_dir;
-  generator.m_binary_dir = binary_dir.empty() ? fs::current_path() : binary_dir;
+  generator.m_source_dir = std::move(source_dir);
+  generator.m_binary_dir = std::move(binary_dir);
   generator.m_template_dir =
-      template_dir.empty() ? generator.m_source_dir / "template" : template_dir;
+      app.count("-t") == 0 ? generator.m_source_dir / "template"
+                           : std::move(template_dir);
   generator.m_shader_set_name = std::move(shader_set_name);
   generator.m_verbose_output = verbose;
+
+  // ── resolve depfile path ──────────────────────────────────────────
+  if (app.count("--depfile") == 0)
+    generator.m_depfile_path =
+        generator.m_binary_dir / (generator.m_shader_set_name + ".d");
+  else
+    generator.m_depfile_path = depfile_path.is_relative()
+                                   ? generator.m_binary_dir / depfile_path
+                                   : depfile_path;
 
   // TODO: In the future, load manifest from config_file (JSON or .cpp)
   //       For now the default constructor calls make_manifest().
