@@ -83,9 +83,12 @@ function(add_shader_set name manifest_source)
     set(_template_dir "${AKRENDER_SHADERSET_ROOT}/template")
     set(_generator_src_dir "${AKRENDER_SHADERSET_ROOT}/src/ShaderSetGenerator")
 
+    set(_generator_inc_dir "${AKRENDER_SHADERSET_ROOT}/include/AkRender/ShaderSetGenerator")
+
     foreach(_required
         "${_template_dir}/ShaderSet.hpp.inja"
         "${_template_dir}/ShaderSet.cpp.inja"
+        "${_generator_inc_dir}/ManifestEntry.inc"
         "${_generator_src_dir}/Generator.cpp"
         "${_generator_src_dir}/Manifest.cpp"
         "${_generator_src_dir}/VirtualPath.cpp"
