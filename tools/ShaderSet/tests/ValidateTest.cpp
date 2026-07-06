@@ -39,7 +39,7 @@ TEST(ValidateTest, RejectsEmptyManifest)
   const Manifest manifest;
   const auto errors = validate(manifest, opts_for("."));
   ASSERT_EQ(errors.size(), 1u);
-  EXPECT_EQ(errors.front().message, "no embedded binary resources in manifest");
+  EXPECT_EQ(errors.front().message, "manifest declares no embeddable resources");
 }
 
 TEST(ValidateTest, RejectsDuplicateResourceName)
@@ -96,7 +96,9 @@ TEST(ValidateTest, RejectsUnconfiguredBinaryResource)
       validate(manifest, ValidateOptions{.manifest_dir = ".",
                                          .require_embedded_resources = true,
                                          .check_sources = false});
-  ASSERT_GE(errors.size(), 2u);
+  ASSERT_EQ(errors.size(), 1u);
+  EXPECT_EQ(errors.front().resource, "raw");
+  EXPECT_EQ(errors.front().message, "source path is empty");
 }
 
 TEST(ValidateTest, RejectsVirtualPathPrefixConflict)

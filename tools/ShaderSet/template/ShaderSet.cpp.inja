@@ -8,9 +8,11 @@ namespace {{ namespace_name }}
 // ═══════════════════════════════════════════════════════════════════
 //  Embedded binary blob
 // ═══════════════════════════════════════════════════════════════════
-constexpr ::std::byte {{ blob_var }}_data[] = {
+const ::std::byte {{ blob_var }}_data[] = {
 {{ blob_bytes }}
 };
+
+const ::std::size_t {{ blob_var }}_size = sizeof({{ blob_var }}_data);
 
 // ═══════════════════════════════════════════════════════════════════
 //  VirtualFileSystemView — binds VFS + blob at link time

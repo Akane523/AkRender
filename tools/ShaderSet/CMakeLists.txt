@@ -13,6 +13,7 @@ target_include_directories(AkRenderSlangJIT PUBLIC
 )
 target_sources(AkRenderSlangJIT PRIVATE
     src/SlangJIT/SlangJIT.cpp
+    src/SlangJIT/SlangCompileSession.cpp
 )
 target_link_libraries(AkRenderSlangJIT PUBLIC
     slang::slang
@@ -44,6 +45,7 @@ if (AKRENDER_SHADER_BUILD_TEST)
     find_package(GTest CONFIG REQUIRED)
 
     add_shader_set(test_manifest tests/GeneratorExample/manifest.cpp)
+    add_shader_set(shader_compile_manifest tests/ShaderCompileExample/manifest.cpp)
 
     set(_test_manifest_gen_dir
         "${CMAKE_CURRENT_BINARY_DIR}/tests/GeneratorExample")
@@ -56,6 +58,7 @@ if (AKRENDER_SHADER_BUILD_TEST)
         tests/EmbedBatchTest.cpp
         tests/ManifestTest.cpp
         tests/GeneratorTest.cpp
+        tests/ShaderCompileTest.cpp
         src/ShaderSetGenerator/Manifest.cpp
         src/ShaderSetGenerator/VirtualPath.cpp
         src/ShaderSetGenerator/PathMapping.cpp
@@ -65,10 +68,11 @@ if (AKRENDER_SHADER_BUILD_TEST)
     target_link_libraries(AkRenderShaderTest PRIVATE
         AkRenderShaderSet
         test_manifest
+        shader_compile_manifest
         GTest::gtest_main
     )
     target_compile_options(AkRenderShaderTest PRIVATE -Wno-deprecated-declarations)
-    add_dependencies(AkRenderShaderTest test_manifest)
+    add_dependencies(AkRenderShaderTest test_manifest shader_compile_manifest)
 
     add_test(NAME AkRenderShaderUnitTests
         COMMAND AkRenderShaderTest
@@ -136,6 +140,7 @@ install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/PathMapping.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/EmbedBatch.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/Validate.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/ManifestCompile.cpp"
     DESTINATION ${_akrender_shaderset_cmake_dir}/src/ShaderSetGenerator
 )
 

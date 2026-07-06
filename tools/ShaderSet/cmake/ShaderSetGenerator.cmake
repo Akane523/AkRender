@@ -75,6 +75,7 @@ function(add_shader_set name manifest_source)
         "${_generator_src_dir}/PathMapping.cpp"
         "${_generator_src_dir}/EmbedBatch.cpp"
         "${_generator_src_dir}/Validate.cpp"
+        "${_generator_src_dir}/ManifestCompile.cpp"
     )
         if(NOT EXISTS "${_required}")
             message(FATAL_ERROR
@@ -123,6 +124,7 @@ function(add_shader_set name manifest_source)
         "${_generator_src_dir}/PathMapping.cpp"
         "${_generator_src_dir}/EmbedBatch.cpp"
         "${_generator_src_dir}/Validate.cpp"
+        "${_generator_src_dir}/ManifestCompile.cpp"
         "${manifest_source_real}"
     )
     target_link_libraries(${name}_generator PRIVATE

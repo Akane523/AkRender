@@ -74,6 +74,8 @@ struct SpirV_Shader
   std::filesystem::path source_path;
   /// Name of the entry-point function (e.g. \p "main").
   std::string entry_point = "main";
+  /// Pipeline stage this shader targets.
+  Stage stage = Stage::Vertex;
   /// How this shader is located during the build.
   ResourceSeekType seek_type = Embed{};
 };

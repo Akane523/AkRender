@@ -1,4 +1,5 @@
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
+#include <AkRender/ShaderSetGenerator/ManifestCompile.hpp>
 #include <AkRender/ShaderSetGenerator/Validate.hpp>
 #include <CLI/CLI.hpp>
 
@@ -20,8 +21,12 @@
 
 namespace fs = std::filesystem;
 
-using AkRender::ShaderSetGenerator::make_manifest;
+using AkRender::ShaderSetGenerator::BlobSegment;
+using AkRender::ShaderSetGenerator::BlobSegmentKind;
+using AkRender::ShaderSetGenerator::compile_manifest_shaders;
+using AkRender::ShaderSetGenerator::ShaderCodegenData;
 using AkRender::ShaderSetGenerator::make_cpp_identifier;
+using AkRender::ShaderSetGenerator::make_manifest;
 using AkRender::ShaderSetGenerator::Manifest;
 using AkRender::ShaderSetGenerator::validate;
 using AkRender::ShaderSetGenerator::ValidateOptions;
@@ -32,14 +37,106 @@ namespace Config = AkRender::ShaderSetGenerator::Config;
 //  Internal: resource data collected from the manifest
 // ═════════════════════════════════════════════════════════════════════════
 
-/// @brief Holds the raw bytes and metadata for one resource to be embedded.
+/// @brief Holds the raw bytes and metadata for one blob segment.
 struct ResourceInput
 {
-  std::string name;            ///< friendly name from manifest
-  std::string vfs_path;        ///< virtual path (e.g. "/shaders/x.spv")
-  std::vector<std::byte> data; ///< raw binary content
-  std::size_t blob_offset = 0; ///< assigned during concatenation
+  BlobSegmentKind kind = BlobSegmentKind::Binary;
+  std::string manifest_name;
+  std::string vfs_path;
+  std::vector<std::byte> data;
+  std::size_t blob_offset = 0;
 };
+
+static const ResourceInput *
+find_segment(const std::vector<ResourceInput> &resources, BlobSegmentKind kind,
+             const std::string &manifest_name)
+{
+  for (const ResourceInput &resource : resources)
+  {
+    if (resource.kind == kind && resource.manifest_name == manifest_name)
+      return &resource;
+  }
+  return nullptr;
+}
+
+static inja::json
+resolve_module_records(inja::json entries,
+                       const std::vector<ResourceInput> &resources)
+{
+  for (inja::json &entry : entries)
+  {
+    const std::string name = entry.at("name");
+    const ResourceInput *resource =
+        find_segment(resources, BlobSegmentKind::ModuleIR, name);
+    if (!resource)
+    {
+      throw std::runtime_error("internal error: missing module IR for '" +
+                               name + "'");
+    }
+    entry["offset"] = resource->blob_offset;
+    entry["size"] = resource->data.size();
+  }
+  return entries;
+}
+
+static inja::json
+resolve_slang_shader_records(inja::json entries,
+                             const std::vector<ResourceInput> &resources)
+{
+  for (inja::json &entry : entries)
+  {
+    const std::string name = entry.at("name");
+    const ResourceInput *ir =
+        find_segment(resources, BlobSegmentKind::ShaderIR, name);
+    if (!ir)
+    {
+      throw std::runtime_error("internal error: missing shader IR for '" + name +
+                               "'");
+    }
+    entry["offset"] = ir->blob_offset;
+    entry["size"] = ir->data.size();
+
+    if (entry.contains("has_spirv") && entry.at("has_spirv").get<bool>())
+    {
+      const ResourceInput *spirv =
+          find_segment(resources, BlobSegmentKind::ShaderSpirV, name);
+      if (!spirv)
+      {
+        throw std::runtime_error("internal error: missing shader SPIR-V for '" +
+                                 name + "'");
+      }
+      entry["spirv_offset"] = spirv->blob_offset;
+      entry["spirv_size"] = spirv->data.size();
+    }
+  }
+  return entries;
+}
+
+static inja::json
+resolve_spirv_shader_records(inja::json entries,
+                             const std::vector<ResourceInput> &resources)
+{
+  inja::json resolved = inja::json::array();
+  for (inja::json entry : entries)
+  {
+    if (entry.contains("from_slang_shader") &&
+        entry.at("from_slang_shader").get<bool>())
+      continue;
+
+    const std::string name = entry.at("name");
+    const ResourceInput *spirv =
+        find_segment(resources, BlobSegmentKind::ShaderSpirV, name);
+    if (!spirv)
+    {
+      throw std::runtime_error("internal error: missing SPIR-V for '" + name +
+                               "'");
+    }
+    entry["offset"] = spirv->blob_offset;
+    entry["size"] = spirv->data.size();
+    resolved.push_back(std::move(entry));
+  }
+  return resolved;
+}
 
 /// @brief Trie node used to build the virtual directory tree.
 struct TrieNode
@@ -178,13 +275,33 @@ struct ShaderSetGenerator
 
     fs::create_directories(m_binary_dir);
 
-    // ── collect binary resources from manifest ────────────────────
+    log_verbose("compiling slang modules and shaders …");
+    const ShaderCodegenData shader_data =
+        compile_manifest_shaders(m_manifest, m_source_dir, m_verbose_output);
+    m_slang_modules = shader_data.slang_modules;
+    m_slang_shaders = shader_data.slang_shaders;
+    m_spirv_shaders = shader_data.spirv_shaders;
+
     log_verbose("collecting binary resources …");
     auto resources = collect_binary_resources();
+    for (const BlobSegment &segment : shader_data.segments)
+    {
+      resources.push_back({
+          .kind = segment.kind,
+          .manifest_name = segment.manifest_name,
+          .vfs_path = segment.vfs_path,
+          .data = segment.data,
+      });
+    }
 
-    // ── concatenate blob, assign offsets ──────────────────────────
     log_verbose("concatenating binary blob …");
     const auto blob = concatenate_blob(resources);
+
+    m_slang_modules = resolve_module_records(m_slang_modules, resources);
+    m_slang_shaders =
+        resolve_slang_shader_records(m_slang_shaders, resources);
+    m_spirv_shaders =
+        resolve_spirv_shader_records(m_spirv_shaders, resources);
 
     // ── build VFS nodes (flat array) ──────────────────────────────
     log_verbose("building VFS node tree …");
@@ -221,6 +338,9 @@ struct ShaderSetGenerator
         m_depfile[cpp_out].push_back(src);
       }
 
+      for (const fs::path &src : shader_data.source_dependencies)
+        m_depfile[hpp_out].push_back(src);
+
       write_depfile();
     }
 
@@ -242,7 +362,11 @@ struct ShaderSetGenerator
   fs::path m_template_dir;
   std::string m_shader_set_name;
   bool m_verbose_output = false;
-  fs::path m_depfile_path; ///< Path for generated .d depfile (empty = skip)
+  fs::path m_depfile_path;
+
+  inja::json m_slang_modules = inja::json::array();
+  inja::json m_slang_shaders = inja::json::array();
+  inja::json m_spirv_shaders = inja::json::array();
 
   using depfile_t = std::map<fs::path, std::vector<fs::path>>;
   depfile_t m_depfile; ///< maps output files to their source dependencies (for build system integration)
@@ -290,7 +414,8 @@ private:
                static_cast<std::streamsize>(sz));
 
       resources.push_back({
-          .name = entry->name,
+          .kind = BlobSegmentKind::Binary,
+          .manifest_name = entry->name,
           .vfs_path = std::move(vpath),
           .data = std::move(data),
       });
@@ -298,7 +423,7 @@ private:
       if (m_verbose_output)
       {
         std::ostringstream oss;
-        oss << "  \"" << resources.back().name << "\" → "
+        oss << "  \"" << resources.back().manifest_name << "\" → "
             << resources.back().vfs_path << "  ("
             << resources.back().data.size() << " bytes)";
         log_verbose(oss.str());
@@ -329,9 +454,9 @@ private:
       if (path.empty())
       {
         // Resource at root — treat as direct child of root
-        trie[0].children[resources[ri].name] = trie.size();
+        trie[0].children[resources[ri].manifest_name] = trie.size();
         trie.push_back(TrieNode{
-            .component = resources[ri].name,
+            .component = resources[ri].manifest_name,
             .is_file = true,
             .resource_index = ri,
         });
@@ -456,17 +581,19 @@ private:
     std::string ident = make_cpp_identifier(m_shader_set_name);
 
     std::vector<inja::json> binary_resources;
-    binary_resources.reserve(resources.size());
     for (std::size_t i = 0; i < resources.size(); ++i)
     {
       const ResourceInput &resource = resources[i];
+      if (resource.kind != BlobSegmentKind::Binary)
+        continue;
+
       binary_resources.push_back({
-          {"name", resource.name},
-          {"ident", make_cpp_identifier(resource.name)},
+          {"name", resource.manifest_name},
+          {"ident", make_cpp_identifier(resource.manifest_name)},
           {"vfs_path", resource.vfs_path},
           {"offset", resource.blob_offset},
           {"size", resource.data.size()},
-          {"index", i},
+          {"index", binary_resources.size()},
       });
     }
 
@@ -480,6 +607,12 @@ private:
         {"binary_table_var", ident + "_binary_resources"},
         {"binary_resource_count", binary_resources.size()},
         {"binary_resources", binary_resources},
+        {"slang_module_count", m_slang_modules.size()},
+        {"slang_modules", m_slang_modules},
+        {"slang_shader_count", m_slang_shaders.size()},
+        {"slang_shaders", m_slang_shaders},
+        {"spirv_shader_count", m_spirv_shaders.size()},
+        {"spirv_shaders", m_spirv_shaders},
         {"nodes", nodes},
     };
   }
