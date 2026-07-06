@@ -2,8 +2,13 @@
 # Package configuration for find_package(AkRender).
 #
 # Provides targets:
-#   AkRender::AkRender          - Main renderer library (Vulkan + Slang + deps)
-#   AkRender::SlangShaderCompiler - CMake module with slang_add_shader_library etc.
+#   AkRender::AkRender            - Main renderer library (Vulkan + Slang + deps)
+#
+# CMake modules (included automatically):
+#   SlangShaderCompiler.cmake       - slang_add_shader / slang_add_module etc.
+#
+# ShaderSet is a separate package — use find_package(AkRenderShaderSet) for
+# add_shader_set() and the ShaderSet runtime libraries.
 #
 # Usage:
 #   find_package(AkRender REQUIRED)

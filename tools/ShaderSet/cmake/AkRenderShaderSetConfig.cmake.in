@@ -1,0 +1,37 @@
+# ── AkRenderShaderSetConfig.cmake ────────────────────────────────────────────
+# Package configuration for find_package(AkRenderShaderSet).
+#
+# Provides targets:
+#   AkRenderShaderSet::AkRenderShaderSet  - ShaderSet runtime (VFS, descriptors)
+#   AkRenderShaderSet::AkRenderSlangJIT   - Slang JIT compilation runtime
+#
+# CMake module (included automatically):
+#   ShaderSetGenerator.cmake              - add_shader_set() for offline embedding
+#
+# Usage:
+#   find_package(AkRenderShaderSet REQUIRED)
+#
+#   add_shader_set(my_shaders path/to/manifest.cpp)
+#   target_link_libraries(my_app PRIVATE my_shaders)
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(slang CONFIG)
+
+include("${CMAKE_CURRENT_LIST_DIR}/ShaderSetGenerator.cmake")
+
+if(NOT TARGET AkRenderShaderSet::AkRenderShaderSet)
+    include("${CMAKE_CURRENT_LIST_DIR}/AkRenderShaderSetTargets.cmake")
+endif()
+
+# Short aliases used by add_shader_set() and in-tree builds.
+if(TARGET AkRenderShaderSet::AkRenderShaderSet AND NOT TARGET AkRenderShaderSet)
+    add_library(AkRenderShaderSet ALIAS AkRenderShaderSet::AkRenderShaderSet)
+endif()
+if(TARGET AkRenderShaderSet::AkRenderSlangJIT AND NOT TARGET AkRenderSlangJIT)
+    add_library(AkRenderSlangJIT ALIAS AkRenderShaderSet::AkRenderSlangJIT)
+endif()
+
+check_required_components(AkRenderShaderSet)

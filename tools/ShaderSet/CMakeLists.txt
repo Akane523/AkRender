@@ -1,10 +1,15 @@
 find_package(inja CONFIG REQUIRED)
 find_package(CLI11 CONFIG REQUIRED)
 
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
 # ── AkRenderSlangJIT — Slang JIT compilation types and runtime ──────────────
 add_library(AkRenderSlangJIT STATIC)
+
 target_include_directories(AkRenderSlangJIT PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_sources(AkRenderSlangJIT PRIVATE
     src/SlangJIT/SlangJIT.cpp
@@ -17,7 +22,8 @@ target_link_libraries(AkRenderSlangJIT PUBLIC
 add_library(AkRenderShaderSet STATIC)
 
 target_include_directories(AkRenderShaderSet PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_sources(AkRenderShaderSet PRIVATE
@@ -28,62 +34,113 @@ target_link_libraries(AkRenderShaderSet PUBLIC
     AkRenderSlangJIT
 )
 
-# Use the fixed template directory for now.
-set(_template_dir ${CMAKE_CURRENT_LIST_DIR}/template)
-
-# ── Shader Set Generator — offline code generation tool ────────────────────
-# NOTE: make_manifest() is provided by the consumer.  For testing, we link the
-# example implementation from example/GeneratorExample/.
-
-function(add_shader_set name manifest_source)
-    file(REAL_PATH ${manifest_source} manifest_source_real)
-
-    if (NOT EXISTS ${manifest_source_real})
-        message(FATAL_ERROR "Manifest source file '${manifest_source}' does not exist.")
-    endif()
-
-    message(STATUS "Adding shader set '${name}' with manifest source '${manifest_source_real}'")
-
-    cmake_path(GET manifest_source_real PARENT_PATH manifest_dir)
-    set(_source_dir ${manifest_dir}/src)
-    file(RELATIVE_PATH _source_dir_rel ${CMAKE_CURRENT_SOURCE_DIR} ${_source_dir})
-    cmake_path(APPEND _binary_dir ${CMAKE_CURRENT_BINARY_DIR} ${_source_dir_rel})
-
-    message(STATUS "\t source dir: ${_source_dir}")
-    message(STATUS "\t binary dir: ${_binary_dir}")
-
-    add_executable(
-        ${name}_generator
-        src/ShaderSetGenerator/Generator.cpp
-        src/ShaderSetGenerator/Manifest.cpp
-        ${manifest_source}
-    )
-    target_link_libraries(${name}_generator PRIVATE
-        AkRenderShaderSet
-        pantor::inja
-        CLI11::CLI11
-    )
-
-    # Other part is not implemented yet.
-endfunction()
+# ── Shader Set Generator module ──────────────────────────────────────────────
+set(AKRENDER_SHADERSET_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ShaderSetGenerator.cmake")
 
 # ── Tests ────────────────────────────────────────────────────────────────────
 
 if (AKRENDER_SHADER_BUILD_TEST)
     find_package(GTest CONFIG REQUIRED)
 
+    add_shader_set(test_manifest tests/GeneratorExample/manifest.cpp)
+
+    set(_test_manifest_gen_dir
+        "${CMAKE_CURRENT_BINARY_DIR}/tests/GeneratorExample")
+
     add_executable(AkRenderShaderTest
         tests/VirtualFileSystemTest.cpp
+        tests/ManifestTest.cpp
+        tests/GeneratorTest.cpp
+        src/ShaderSetGenerator/Manifest.cpp
     )
     target_link_libraries(AkRenderShaderTest PRIVATE
         AkRenderShaderSet
+        test_manifest
         GTest::gtest_main
     )
     target_compile_options(AkRenderShaderTest PRIVATE -Wno-deprecated-declarations)
+    add_dependencies(AkRenderShaderTest test_manifest)
 
-    add_shader_set(test_manifest tests/GeneratorExample/manifest.cpp)
-
-    add_test(NAME VirtualFileSystemTest
+    add_test(NAME AkRenderShaderUnitTests
         COMMAND AkRenderShaderTest
     )
+
+    add_test(NAME ShaderSetGeneratedOutputsExist
+        COMMAND ${CMAKE_COMMAND}
+            -DFILE=${_test_manifest_gen_dir}/test_manifest.hpp
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/AssertFileExists.cmake
+    )
+    add_test(NAME ShaderSetGeneratedSourceExists
+        COMMAND ${CMAKE_COMMAND}
+            -DFILE=${_test_manifest_gen_dir}/test_manifest.cpp
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/AssertFileExists.cmake
+    )
+    add_test(NAME ShaderSetDepfileExists
+        COMMAND ${CMAKE_COMMAND}
+            -DFILE=${_test_manifest_gen_dir}/test_manifest.d
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/AssertFileExists.cmake
+    )
 endif()
+
+# ── Install (independent AkRenderShaderSet package) ───────────────────────────
+
+set(_akrender_shaderset_cmake_dir
+    ${CMAKE_INSTALL_LIBDIR}/cmake/AkRenderShaderSet)
+
+install(TARGETS AkRenderShaderSet AkRenderSlangJIT
+    EXPORT AkRenderShaderSetTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(EXPORT AkRenderShaderSetTargets
+    NAMESPACE AkRenderShaderSet::
+    DESTINATION ${_akrender_shaderset_cmake_dir}
+)
+
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/AkRender/ShaderSet"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/AkRender
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/AkRender/ShaderSetGenerator"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/AkRender
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/AkRender/SlangJIT"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/AkRender
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+)
+
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ShaderSetGenerator.cmake"
+    DESTINATION ${_akrender_shaderset_cmake_dir}
+)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/template/ShaderSet.hpp.inja"
+    "${CMAKE_CURRENT_SOURCE_DIR}/template/ShaderSet.cpp.inja"
+    DESTINATION ${_akrender_shaderset_cmake_dir}/template
+)
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/Generator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/Manifest.cpp"
+    DESTINATION ${_akrender_shaderset_cmake_dir}/src/ShaderSetGenerator
+)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/AkRenderShaderSetConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/AkRenderShaderSetConfig.cmake"
+    INSTALL_DESTINATION ${_akrender_shaderset_cmake_dir}
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/AkRenderShaderSetConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/AkRenderShaderSetConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/AkRenderShaderSetConfigVersion.cmake"
+    DESTINATION ${_akrender_shaderset_cmake_dir}
+)
