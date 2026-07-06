@@ -10,19 +10,16 @@
 
 #pragma once
 
-#include <AkRender/ShaderSetGenerator/EmbedBatch.hpp>
 #include <AkRender/ShaderSetGenerator/PathMapping.hpp>
 #include <AkRender/ShaderSetGenerator/VirtualPath.hpp>
 
 #include <AkRender/SlangJIT/SlangJIT.hpp>
 
 #include <filesystem>
-#include <initializer_list>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace AkRender::ShaderSetGenerator
@@ -36,21 +33,11 @@ using AkRender::ShaderSet::PreprocessorDefine;
 using AkRender::ShaderSet::Stage;
 using AkRender::ShaderSet::TargetFormat;
 
+class ScopedSourceRoot;
+class ScopedVfsPrefix;
+
 namespace Config
 {
-
-/// \brief Configuration for embedding a resource into the shader set.
-///
-/// The resource is copied into the shader set binary at build time, and could
-/// be accessed by VirutalFileSystem at runtime.
-struct Embed
-{
-  /// Absolute normalized VFS path where the resource is embedded.
-  VirtualPath virtual_path{};
-};
-
-/// \brief Determines how a resource is located at build time.
-using ResourceSeekType = std::variant<std::monostate, Embed>;
 
 /// \brief Describes a binary resource to be embedded into or referenced from
 ///        the shader set.
@@ -61,8 +48,8 @@ struct BinaryResource
   /// Path to the source file on disk (absolute or relative to the manifest
   /// source root).
   SourcePath source_path;
-  /// How this resource is located during the build.
-  ResourceSeekType seek_type = Embed{};
+  /// Absolute normalized VFS path where the resource is embedded.
+  VirtualPath vfs_path{};
 };
 
 /// \brief Describes a pre-compiled SPIR-V shader with its entry point.
@@ -76,8 +63,8 @@ struct SpirV_Shader
   std::string entry_point = "main";
   /// Pipeline stage this shader targets.
   Stage stage = Stage::Vertex;
-  /// How this shader is located during the build.
-  ResourceSeekType seek_type = Embed{};
+  /// VFS path where the SPIR-V blob is embedded.
+  VirtualPath vfs_path{};
 };
 
 /// \brief Describes a Slang module to be compiled.
@@ -97,6 +84,8 @@ struct SlangModule
   /// Module identity for \c -module-name (e.g. "math_utils").
   /// Defaults to \a name when empty.
   std::string module_name;
+  /// VFS path for the compiled module IR blob.
+  VirtualPath ir_vfs_path{};
 };
 
 /// \brief Determines what output the generator should produce for a Slang
@@ -137,8 +126,10 @@ struct SlangShader
   /// Names of SlangModule entries that must be imported before this shader
   /// can be compiled.  The names are compared against SlangModule::name.
   std::vector<std::string> dependencies;
-  /// How this shader is located during the build.
-  ResourceSeekType seek_type = Embed{};
+  /// VFS path for compiled shader IR (SlangIR / Both).
+  VirtualPath ir_vfs_path{};
+  /// VFS path for compiled SPIR-V (SpirV / Both).
+  VirtualPath spv_vfs_path{};
 };
 
 } // namespace Config
@@ -164,29 +155,14 @@ public:
   void set_source_root(std::filesystem::path root);
   [[nodiscard]] const std::filesystem::path &source_root() const;
 
-  /// \brief Default VFS prefix used by \c embed_batch().
+  /// \brief Default VFS prefix used by registration helpers.
   void set_vfs_prefix(Config::VirtualPath prefix);
   [[nodiscard]] const Config::VirtualPath &vfs_prefix() const;
 
-  [[nodiscard]] VfsPrefixScope push_vfs_prefix(Config::VirtualPath prefix);
-  [[nodiscard]] SourceRootScope
+  [[nodiscard]] ScopedVfsPrefix push_vfs_prefix(Config::VirtualPath prefix);
+  [[nodiscard]] ScopedSourceRoot
   push_source_root(std::filesystem::path root);
 
-  [[nodiscard]] EmbedBatch embed_batch();
-
-  /// Embed one file at an explicit absolute VFS path.
-  Config::BinaryResource *embed_at(std::string name, Config::SourcePath source,
-                                   Config::VirtualPath absolute_vfs);
-
-  /// Parallel mapping shorthand: \c vfs_prefix / relative source path.
-  Manifest &embed_parallel(
-      Config::VirtualPath vfs_prefix, std::filesystem::path source_root,
-      std::initializer_list<std::pair<std::string, Config::SourcePath>> files);
-
-  /// Recursively embed every regular file under \p source_dir.
-  Manifest &embed_tree(std::filesystem::path source_dir,
-                       Config::VirtualPath vfs_prefix,
-                       TreeNamePolicy name_policy = TreeNamePolicy::RelativePath);
   /// \brief Adds a SPIR-V shader.
   /// \returns Pointer to the newly added entry (owned by the Manifest).
   ///          The pointer remains valid after subsequent additions.

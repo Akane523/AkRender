@@ -14,8 +14,17 @@ bool loadSlangModule(SlangJITCompiler &compiler, const SlangModuleDesc &module,
     return false;
 
   const auto bytes = moduleIRBytes(module, blobData);
+  if (bytes.empty())
+    return false;
+
   return compiler.loadModuleFromIR(module.import_name, bytes.data(),
                                    bytes.size());
+}
+
+bool loadSlangModule(SlangJITCompiler &compiler, const SlangModuleDesc &module,
+                     const VirtualFileSystemView &view)
+{
+  return loadSlangModule(compiler, module, view.blob().data());
 }
 
 CompileResult compileSlangShader(SlangJITCompiler &compiler,
@@ -47,7 +56,13 @@ CompileResult compileSlangShader(SlangJITCompiler &compiler,
     }
   }
 
-  const auto irBytes = recordBytes(shader.ir, blobData);
+  const auto irBytes = shaderIRBytes(shader, blobData);
+  if (irBytes.empty())
+  {
+    result.diagnostic = "compileSlangShader: shader IR bytes are empty";
+    return result;
+  }
+
   std::string shaderModuleName("__shader_");
   shaderModuleName += shader.manifest_name;
 
@@ -59,6 +74,13 @@ CompileResult compileSlangShader(SlangJITCompiler &compiler,
   }
 
   return compiler.compileEntryPoint(shader.entry_point);
+}
+
+CompileResult compileSlangShader(SlangJITCompiler &compiler,
+                                 const SlangShaderDesc &shader,
+                                 const VirtualFileSystemView &view)
+{
+  return compileSlangShader(compiler, shader, view.blob().data());
 }
 
 } // namespace AkRender::ShaderSet

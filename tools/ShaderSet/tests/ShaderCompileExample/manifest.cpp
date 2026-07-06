@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
+#include <AkRender/ShaderSetGenerator/ManifestRegister.hpp>
 
 using AkRender::ShaderSet::Stage;
 
@@ -15,30 +16,29 @@ Manifest make_manifest()
 {
   Manifest manifest;
 
-  auto *math = manifest.add_slang_module("math");
-  math->source_paths = {"shaders/math_utils.slang"};
-  math->module_name = "math_utils";
-
-  auto *vert = manifest.add_slang_shader("triangle_vert");
-  vert->source_path = "shaders/triangle.slang";
-  vert->entry_point = "vsMain";
-  vert->stage = Stage::Vertex;
-  vert->mode = Config::SlangOutputMode::SlangIR;
-  vert->dependencies = {"math"};
-
-  auto *frag = manifest.add_slang_shader("triangle_frag");
-  frag->source_path = "shaders/triangle.slang";
-  frag->entry_point = "fsMain";
-  frag->stage = Stage::Fragment;
-  frag->mode = Config::SlangOutputMode::SpirV;
-  frag->dependencies = {"math"};
-
-  auto *both = manifest.add_slang_shader("triangle_both");
-  both->source_path = "shaders/triangle.slang";
-  both->entry_point = "fsMain";
-  both->stage = Stage::Fragment;
-  both->mode = Config::SlangOutputMode::Both;
-  both->dependencies = {"math"};
+  open(manifest)
+      | module("math")
+            .sources({"shaders/math_utils.slang"})
+            .import_as("math_utils")
+      | slang("triangle_vert")
+            .source("shaders/triangle.slang")
+            .entry("vsMain")
+            .stage(Stage::Vertex)
+            .ir()
+            .uses("math")
+      | slang("triangle_frag")
+            .source("shaders/triangle.slang")
+            .entry("fsMain")
+            .stage(Stage::Fragment)
+            .spirv()
+            .uses("math")
+      | slang("triangle_both")
+            .source("shaders/triangle.slang")
+            .entry("fsMain")
+            .stage(Stage::Fragment)
+            .both()
+            .uses("math")
+      | build();
 
   return manifest;
 }

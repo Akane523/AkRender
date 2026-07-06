@@ -241,7 +241,7 @@ public:
       : fs_(&fs), blob_(blob)
   {}
 
-  // -- Data access -------------------------------------------------
+  constexpr std::span<const std::byte> blob() const noexcept { return blob_; }
 
   /// Read the content of a file by path.
   /// Returns an empty span if the path does not exist or refers to a

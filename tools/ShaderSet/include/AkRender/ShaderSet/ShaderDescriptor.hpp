@@ -64,7 +64,7 @@ struct SpirVShaderDesc
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  Runtime helpers
+//  Runtime helpers — blob pointer
 // ═════════════════════════════════════════════════════════════════════════════
 
 [[nodiscard]] inline std::span<const std::byte>
@@ -77,9 +77,30 @@ recordBytes(const Record &record, const void *blobData) noexcept
 }
 
 [[nodiscard]] inline std::span<const std::byte>
+binaryBytes(const BinaryResourceDesc &resource,
+            const void *blobData) noexcept
+{
+  return recordBytes(resource.data, blobData);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
 moduleIRBytes(const SlangModuleDesc &module, const void *blobData) noexcept
 {
   return recordBytes(module.ir, blobData);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+shaderIRBytes(const SlangShaderDesc &shader, const void *blobData) noexcept
+{
+  return recordBytes(shader.ir, blobData);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+shaderSpirvBytes(const SlangShaderDesc &shader, const void *blobData) noexcept
+{
+  if (!shader.has_offline_spirv())
+    return {};
+  return recordBytes(shader.spirv, blobData);
 }
 
 [[nodiscard]] inline std::span<const std::byte>
@@ -88,11 +109,79 @@ spirvBytes(const SpirVShaderDesc &shader, const void *blobData) noexcept
   return recordBytes(shader.spirv, blobData);
 }
 
+[[nodiscard]] inline std::span<const std::byte>
+spirvBytes(const SlangShaderDesc &shader, const void *blobData) noexcept
+{
+  return shaderSpirvBytes(shader, blobData);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Runtime helpers — VirtualFileSystemView
+// ═════════════════════════════════════════════════════════════════════════════
+
+[[nodiscard]] inline std::span<const std::byte>
+recordBytes(const Record &record,
+            const VirtualFileSystemView &view) noexcept
+{
+  return recordBytes(record, view.blob().data());
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+binaryBytes(const BinaryResourceDesc &resource,
+            const VirtualFileSystemView &view) noexcept
+{
+  return recordBytes(resource.data, view);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+moduleIRBytes(const SlangModuleDesc &module,
+              const VirtualFileSystemView &view) noexcept
+{
+  return recordBytes(module.ir, view);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+shaderIRBytes(const SlangShaderDesc &shader,
+              const VirtualFileSystemView &view) noexcept
+{
+  return recordBytes(shader.ir, view);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+shaderSpirvBytes(const SlangShaderDesc &shader,
+                 const VirtualFileSystemView &view) noexcept
+{
+  if (!shader.has_offline_spirv())
+    return {};
+  return recordBytes(shader.spirv, view);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+spirvBytes(const SpirVShaderDesc &shader,
+           const VirtualFileSystemView &view) noexcept
+{
+  return recordBytes(shader.spirv, view);
+}
+
+[[nodiscard]] inline std::span<const std::byte>
+spirvBytes(const SlangShaderDesc &shader,
+           const VirtualFileSystemView &view) noexcept
+{
+  return shaderSpirvBytes(shader, view);
+}
+
 bool loadSlangModule(SlangJITCompiler &compiler, const SlangModuleDesc &module,
                      const void *blobData);
+
+bool loadSlangModule(SlangJITCompiler &compiler, const SlangModuleDesc &module,
+                     const VirtualFileSystemView &view);
 
 CompileResult compileSlangShader(SlangJITCompiler &compiler,
                                  const SlangShaderDesc &shader,
                                  const void *blobData);
+
+CompileResult compileSlangShader(SlangJITCompiler &compiler,
+                                 const SlangShaderDesc &shader,
+                                 const VirtualFileSystemView &view);
 
 } // namespace AkRender::ShaderSet

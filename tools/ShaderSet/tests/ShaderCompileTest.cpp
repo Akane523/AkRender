@@ -17,6 +17,7 @@ TEST(ShaderCompileGeneratorTest, NamedSlangModuleConstant)
   const SlangModuleDesc &mod = shader_compile_manifest::modules::math;
   EXPECT_EQ(mod.manifest_name, "math");
   EXPECT_EQ(mod.import_name, "math_utils");
+  EXPECT_EQ(mod.vfs_path, "/shaders/slang/math_utils.slang-module");
   EXPECT_FALSE(mod.ir.empty());
 
   const SlangModuleDesc *lookup =
@@ -32,6 +33,7 @@ TEST(ShaderCompileGeneratorTest, NamedSlangShaderConstant)
   EXPECT_EQ(shader.manifest_name, "triangle_vert");
   EXPECT_EQ(shader.entry_point, "vsMain");
   EXPECT_EQ(shader.stage, Stage::Vertex);
+  EXPECT_EQ(shader.vfs_path, "/shaders/slang/triangle_vert.slang-module");
   EXPECT_EQ(shader.num_module_deps, 1u);
   ASSERT_NE(shader.module_deps, nullptr);
   EXPECT_EQ(shader.module_deps[0].manifest_name, "math");
@@ -46,6 +48,7 @@ TEST(ShaderCompileGeneratorTest, NamedSpirVShaderConstant)
   EXPECT_EQ(shader.manifest_name, "triangle_frag");
   EXPECT_EQ(shader.entry_point, "fsMain");
   EXPECT_EQ(shader.stage, Stage::Fragment);
+  EXPECT_EQ(shader.vfs_path, "/shaders/spv/triangle_frag.spv");
   EXPECT_FALSE(shader.spirv.empty());
   EXPECT_GE(shader.spirv.size, 16u);
 }
@@ -55,8 +58,14 @@ TEST(ShaderCompileGeneratorTest, BothModeShaderHasOfflineSpirV)
   const SlangShaderDesc &shader =
       shader_compile_manifest::shaders::triangle_both;
   EXPECT_TRUE(shader.has_offline_spirv());
+  EXPECT_EQ(shader.vfs_path, "/shaders/slang/triangle_both.slang-module");
   EXPECT_FALSE(shader.ir.empty());
   EXPECT_FALSE(shader.spirv.empty());
+
+  const auto spv_blob =
+      shader_compile_manifest::shader_compile_manifest_view.read(
+          "/shaders/spv/triangle_both.spv");
+  EXPECT_FALSE(spv_blob.empty());
   EXPECT_EQ(shader_compile_manifest::find_spirv_shader("triangle_both"),
             nullptr);
 }
@@ -92,7 +101,7 @@ TEST(ShaderCompileGeneratorTest, JitCompileSlangShader)
   ASSERT_TRUE(compiler.createSession({}, {}, shader.options));
 
   const auto result = compileSlangShader(
-      compiler, shader, shader_compile_manifest::shader_compile_manifest_blob_data);
+      compiler, shader, shader_compile_manifest::shader_compile_manifest_view);
   EXPECT_TRUE(result.success) << result.diagnostic;
   EXPECT_GE(result.binary.size(), 4u);
   EXPECT_EQ(result.binary.front(), 0x07230203u);

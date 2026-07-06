@@ -327,7 +327,7 @@ struct ShaderSetGenerator
 
       for (const Config::BinaryResource *entry : m_manifest.binary_resources())
       {
-        if (!std::holds_alternative<Config::Embed>(entry->seek_type))
+        if (entry->vfs_path.empty())
           continue;
 
         fs::path src = entry->source_path.path;
@@ -380,19 +380,13 @@ private:
 
     for (const Config::BinaryResource *entry : m_manifest.binary_resources())
     {
-      // Only handle Embedded resources for now
-      if (!std::holds_alternative<Config::Embed>(entry->seek_type))
-        continue;
-
-      const auto &embed = std::get<Config::Embed>(entry->seek_type);
-
-      if (embed.virtual_path.empty())
+      if (entry->vfs_path.empty())
       {
         throw std::runtime_error("binary resource \"" + entry->name +
                                  "\" has no virtual path");
       }
 
-      const std::string vpath = embed.virtual_path.value;
+      const std::string vpath = entry->vfs_path.value;
 
       fs::path abs_source = entry->source_path.path;
       if (abs_source.is_relative())

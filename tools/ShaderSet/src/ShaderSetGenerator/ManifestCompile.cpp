@@ -160,31 +160,9 @@ std::string moduleIdentity(const Config::SlangModule &mod)
   return mod.module_name.empty() ? mod.name : mod.module_name;
 }
 
-std::string defaultModuleVfsPath(std::string_view moduleIdentity)
+std::string vfsPathValue(const Config::VirtualPath &path)
 {
-  return "/shaders/slang/" + std::string(moduleIdentity) + ".slang-module";
-}
-
-std::string defaultShaderIrVfsPath(std::string_view shaderName)
-{
-  return "/shaders/slang/" + std::string(shaderName) + ".slang-module";
-}
-
-std::string defaultShaderSpvVfsPath(std::string_view shaderName)
-{
-  return "/shaders/spv/" + std::string(shaderName) + ".spv";
-}
-
-std::string resolveEmbedVfsPath(const Config::ResourceSeekType &seek_type,
-                                std::string_view fallback)
-{
-  if (std::holds_alternative<Config::Embed>(seek_type))
-  {
-    const auto &embed = std::get<Config::Embed>(seek_type);
-    if (!embed.virtual_path.empty())
-      return embed.virtual_path.value;
-  }
-  return std::string(fallback);
+  return path.value;
 }
 
 [[nodiscard]] std::vector<std::byte>
@@ -304,7 +282,7 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
         mod->name,
         CompiledModuleIR{.import_name = identity, .ir = result.ir});
 
-    const std::string vfs_path = defaultModuleVfsPath(identity);
+    const std::string vfs_path = vfsPathValue(mod->ir_vfs_path);
     appendSegment(out, makeSegment(BlobSegmentKind::ModuleIR, mod->name,
                                    vfs_path, result.ir));
 
@@ -325,8 +303,7 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
     const fs::path abs_source = resolvePath(source_dir, shader->source_path);
     out.source_dependencies.push_back(abs_source);
 
-    const std::string vfs_path = resolveEmbedVfsPath(
-        shader->seek_type, defaultShaderSpvVfsPath(shader->name));
+    const std::string vfs_path = vfsPathValue(shader->vfs_path);
     appendSegment(out, makeSegment(BlobSegmentKind::ShaderSpirV, shader->name,
                                    vfs_path, readBinaryFile(abs_source)));
 
@@ -396,8 +373,7 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
         throw std::runtime_error(oss.str());
       }
 
-      const std::string ir_vfs = resolveEmbedVfsPath(
-          shader->seek_type, defaultShaderIrVfsPath(shader->name));
+      const std::string ir_vfs = vfsPathValue(shader->ir_vfs_path);
       appendSegment(out, makeSegment(BlobSegmentKind::ShaderIR, shader->name,
                                      ir_vfs, ir_result.ir));
 
@@ -438,7 +414,7 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
         throw std::runtime_error(oss.str());
       }
 
-      spirv_vfs = defaultShaderSpvVfsPath(shader->name);
+      spirv_vfs = vfsPathValue(shader->spv_vfs_path);
       appendSegment(out,
                     makeSegment(BlobSegmentKind::ShaderSpirV, shader->name,
                                 spirv_vfs, spirvWordsToBytes(spv_result.binary)));
@@ -467,8 +443,7 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
       for (const std::string &dep_name : shader->dependencies)
         dep_modules.push_back(make_cpp_identifier(dep_name));
 
-      const std::string ir_vfs = resolveEmbedVfsPath(
-          shader->seek_type, defaultShaderIrVfsPath(shader->name));
+      const std::string ir_vfs = vfsPathValue(shader->ir_vfs_path);
 
       out.slang_shaders.push_back({
           {"name", shader->name},

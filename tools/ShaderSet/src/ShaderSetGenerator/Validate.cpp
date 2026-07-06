@@ -53,24 +53,19 @@ fs::path resolve_manifest_source(const Config::SourcePath &source,
   return resolve_manifest_source(source.path, manifest_dir);
 }
 
-bool validate_vfs_path(std::vector<ValidationError> &errors,
+bool register_vfs_path(std::vector<ValidationError> &errors,
                        const std::string &resource_name,
-                       const Config::ResourceSeekType &seek_type,
+                       const Config::VirtualPath &vfs_path,
                        std::unordered_set<std::string> &vfs_paths,
                        std::vector<std::string> &normalized_vfs_paths)
 {
-  if (!std::holds_alternative<Config::Embed>(seek_type))
+  if (vfs_path.empty())
   {
-    add_error(errors, resource_name, "unsupported seek_type (expected Embed)");
+    add_error(errors, resource_name, "virtual path is empty");
     return false;
   }
 
-  const auto &embed = std::get<Config::Embed>(seek_type);
-  if (embed.virtual_path.empty())
-    return true;
-
-  const auto normalized =
-      Config::normalize_vfs_path(embed.virtual_path.value);
+  const auto normalized = Config::normalize_vfs_path(vfs_path.value);
   if (!normalized)
   {
     add_error(errors, resource_name,
@@ -78,7 +73,7 @@ bool validate_vfs_path(std::vector<ValidationError> &errors,
     return false;
   }
 
-  if (embed.virtual_path.value != normalized->value)
+  if (vfs_path.value != normalized->value)
   {
     add_error(errors, resource_name,
               "virtual path is not normalized (expected '" +
@@ -205,7 +200,7 @@ std::vector<ValidationError> validate(const Manifest &manifest,
   {
     register_name(errors, entry->name, names, idents);
     check_source_file(errors, entry->name, entry->source_path.path, options);
-    validate_vfs_path(errors, entry->name, entry->seek_type, vfs_paths,
+    register_vfs_path(errors, entry->name, entry->vfs_path, vfs_paths,
                       normalized_vfs_paths);
   }
 
@@ -222,13 +217,16 @@ std::vector<ValidationError> validate(const Manifest &manifest,
 
     for (const fs::path &source : entry->source_paths)
       check_source_file(errors, entry->name, source, options);
+
+    register_vfs_path(errors, entry->name, entry->ir_vfs_path, vfs_paths,
+                      normalized_vfs_paths);
   }
 
   for (const Config::SpirV_Shader *entry : spirv_shaders)
   {
     register_name(errors, entry->name, names, idents);
     check_source_file(errors, entry->name, entry->source_path, options);
-    validate_vfs_path(errors, entry->name, entry->seek_type, vfs_paths,
+    register_vfs_path(errors, entry->name, entry->vfs_path, vfs_paths,
                       normalized_vfs_paths);
   }
 
@@ -236,8 +234,24 @@ std::vector<ValidationError> validate(const Manifest &manifest,
   {
     register_name(errors, entry->name, names, idents);
     check_source_file(errors, entry->name, entry->source_path, options);
-    validate_vfs_path(errors, entry->name, entry->seek_type, vfs_paths,
-                      normalized_vfs_paths);
+
+    const bool want_ir =
+        entry->mode == Config::SlangOutputMode::SlangIR ||
+        entry->mode == Config::SlangOutputMode::Both;
+    const bool want_spv =
+        entry->mode == Config::SlangOutputMode::SpirV ||
+        entry->mode == Config::SlangOutputMode::Both;
+
+    if (want_ir)
+    {
+      register_vfs_path(errors, entry->name, entry->ir_vfs_path, vfs_paths,
+                        normalized_vfs_paths);
+    }
+    if (want_spv)
+    {
+      register_vfs_path(errors, entry->name, entry->spv_vfs_path, vfs_paths,
+                        normalized_vfs_paths);
+    }
 
     for (const std::string &dep : entry->dependencies)
     {

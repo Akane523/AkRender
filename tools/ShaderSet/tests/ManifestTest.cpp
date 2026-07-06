@@ -1,4 +1,5 @@
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
+#include <AkRender/ShaderSetGenerator/ManifestRegister.hpp>
 
 #include <gtest/gtest.h>
 
@@ -97,27 +98,6 @@ TEST(ManifestTest, ListAllEntries)
   EXPECT_EQ(manifest.spirv_shaders().size(), 1u);
   EXPECT_EQ(manifest.slang_modules().size(), 1u);
   EXPECT_EQ(manifest.slang_shaders().size(), 1u);
-}
-
-TEST(ManifestTest, EmbedAtNormalizesVirtualPath)
-{
-  Manifest manifest;
-
-  const auto *resource =
-      manifest.embed_at("data", {"file.bin"}, Config::VirtualPath{"/assets//data.bin"});
-  ASSERT_NE(resource, nullptr);
-  EXPECT_EQ(resource->source_path.path, "file.bin");
-  EXPECT_EQ(std::get<Config::Embed>(resource->seek_type).virtual_path.value,
-            "/assets/data.bin");
-}
-
-TEST(ManifestTest, EmbedAtRejectsInvalidVirtualPath)
-{
-  Manifest manifest;
-
-  EXPECT_THROW(
-      manifest.embed_at("data", {"file.bin"}, Config::VirtualPath{"/assets/"}),
-      std::invalid_argument);
 }
 
 TEST(ManifestTest, VfsPrefixScopeRestoresPreviousPrefix)

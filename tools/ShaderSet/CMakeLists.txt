@@ -29,6 +29,7 @@ target_include_directories(AkRenderShaderSet PUBLIC
 
 target_sources(AkRenderShaderSet PRIVATE
     src/ShaderSet/ShaderDescriptor.cpp
+    src/ShaderSet/ShaderSetRuntime.cpp
 )
 
 target_link_libraries(AkRenderShaderSet PUBLIC
@@ -54,15 +55,24 @@ if (AKRENDER_SHADER_BUILD_TEST)
         tests/VirtualFileSystemTest.cpp
         tests/VirtualPathTest.cpp
         tests/PathMappingTest.cpp
+        tests/VfsPlacementTest.cpp
         tests/ValidateTest.cpp
-        tests/EmbedBatchTest.cpp
+        tests/ManifestRegisterTest.cpp
+        tests/BuilderTest.cpp
         tests/ManifestTest.cpp
         tests/GeneratorTest.cpp
         tests/ShaderCompileTest.cpp
+        tests/ShaderDescriptorTest.cpp
+        tests/ShaderSetRuntimeTest.cpp
         src/ShaderSetGenerator/Manifest.cpp
         src/ShaderSetGenerator/VirtualPath.cpp
         src/ShaderSetGenerator/PathMapping.cpp
-        src/ShaderSetGenerator/EmbedBatch.cpp
+        src/ShaderSetGenerator/VfsPlacement.cpp
+        src/ShaderSetGenerator/ManifestRegister.cpp
+        src/ShaderSetGenerator/RegisterInternals.cpp
+        src/ShaderSetGenerator/ModuleBuilder.cpp
+        src/ShaderSetGenerator/SlangBuilder.cpp
+        src/ShaderSetGenerator/SpirVFileBuilder.cpp
         src/ShaderSetGenerator/Validate.cpp
     )
     target_link_libraries(AkRenderShaderTest PRIVATE
@@ -138,7 +148,12 @@ install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/Manifest.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/VirtualPath.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/PathMapping.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/EmbedBatch.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/VfsPlacement.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/ManifestRegister.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/RegisterInternals.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/ModuleBuilder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/SlangBuilder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/SpirVFileBuilder.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/Validate.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ShaderSetGenerator/ManifestCompile.cpp"
     DESTINATION ${_akrender_shaderset_cmake_dir}/src/ShaderSetGenerator
