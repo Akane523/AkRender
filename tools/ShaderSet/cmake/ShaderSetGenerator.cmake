@@ -19,10 +19,9 @@
 #
 #   add_shader_set(<name> <manifest.cpp>)
 #
-# Compiles and runs ShaderSetGenerator with the consumer-provided
-# make_manifest() implementation, embeds binary resources declared in the
-# manifest, and produces a STATIC library <name> linked against
-# AkRenderShaderSet.
+# The manifest source must define AkRender::ShaderSetGenerator::make_manifest()
+# and end with #include <AkRender/ShaderSetGenerator/ManifestEntry.inc>.
+# JSON / data-driven manifest configuration is not supported.
 #
 # Directory layout (relative paths in the manifest resolve against the manifest
 # file's parent directory):
@@ -54,6 +53,24 @@ endif()
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  add_shader_set
+
+function(_akrender_validate_manifest_source manifest_source_real)
+    file(READ "${manifest_source_real}" _manifest_src)
+
+    if(NOT _manifest_src MATCHES "make_manifest")
+        message(FATAL_ERROR
+            "ShaderSet manifest '${manifest_source_real}' must define\n"
+            "  AkRender::ShaderSetGenerator::Manifest make_manifest()\n"
+            "See tools/ShaderSet/tests/GeneratorExample/manifest.cpp.")
+    endif()
+
+    if(NOT _manifest_src MATCHES "ManifestEntry\\.inc")
+        message(FATAL_ERROR
+            "ShaderSet manifest '${manifest_source_real}' must end with\n"
+            "  #include <AkRender/ShaderSetGenerator/ManifestEntry.inc>\n"
+            "This registers make_manifest() with ShaderSetGenerator.")
+    endif()
+endfunction()
 
 function(add_shader_set name manifest_source)
     if(NOT AKRENDER_SHADERSET_ROOT)
@@ -107,6 +124,8 @@ function(add_shader_set name manifest_source)
     if(NOT EXISTS "${manifest_source_real}")
         message(FATAL_ERROR "Manifest source file '${manifest_source}' does not exist.")
     endif()
+
+    _akrender_validate_manifest_source("${manifest_source_real}")
 
     message(STATUS "Adding shader set '${name}' with manifest source '${manifest_source_real}'")
 

@@ -15,7 +15,7 @@ using namespace AkRender::ShaderSet;
 
 TEST(ShaderDescriptorTest, RecordBytesViaView)
 {
-  const auto &view = shader_compile_manifest::shader_compile_manifest_view;
+  const auto &view = shader_compile_manifest::view;
   const auto bytes =
       recordBytes(shader_compile_manifest::modules::math.ir, view);
   const auto viaPath = view.read("/shaders/slang/math_utils.slang-module");
@@ -26,7 +26,7 @@ TEST(ShaderDescriptorTest, RecordBytesViaView)
 
 TEST(ShaderDescriptorTest, BinaryBytesViaView)
 {
-  const auto &view = test_manifest::test_manifest_view;
+  const auto &view = test_manifest::view;
   const auto bytes = binaryBytes(test_manifest::resources::example_data, view);
   ASSERT_EQ(bytes.size(), 21u);
 
@@ -37,7 +37,7 @@ TEST(ShaderDescriptorTest, BinaryBytesViaView)
 
 TEST(ShaderDescriptorTest, ShaderSpirvBytesForBothMode)
 {
-  const auto &view = shader_compile_manifest::shader_compile_manifest_view;
+  const auto &view = shader_compile_manifest::view;
   const auto &shader = shader_compile_manifest::shaders::triangle_both;
   ASSERT_TRUE(shader.has_offline_spirv());
 
@@ -54,7 +54,7 @@ TEST(ShaderDescriptorTest, ShaderSpirvBytesForBothMode)
 
 TEST(ShaderDescriptorTest, JitShaderHasIrButNoOfflineSpirv)
 {
-  const auto &view = shader_compile_manifest::shader_compile_manifest_view;
+  const auto &view = shader_compile_manifest::view;
   const auto &shader = shader_compile_manifest::shaders::triangle_vert;
   EXPECT_FALSE(shaderIRBytes(shader, view).empty());
   EXPECT_TRUE(shaderSpirvBytes(shader, view).empty());
@@ -62,14 +62,14 @@ TEST(ShaderDescriptorTest, JitShaderHasIrButNoOfflineSpirv)
 
 TEST(ShaderDescriptorTest, OfflineSpirVShaderBytes)
 {
-  const auto &view = shader_compile_manifest::shader_compile_manifest_view;
+  const auto &view = shader_compile_manifest::view;
   const auto &shader = shader_compile_manifest::shaders::triangle_frag;
   EXPECT_FALSE(spirvBytes(shader, view).empty());
 }
 
 TEST(ShaderDescriptorTest, CompileSlangShaderViaView)
 {
-  const auto &view = shader_compile_manifest::shader_compile_manifest_view;
+  const auto &view = shader_compile_manifest::view;
   const auto &shader = shader_compile_manifest::shaders::triangle_vert;
 
   SlangJITCompiler compiler;

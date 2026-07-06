@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "shader_compile_manifest.hpp"
@@ -63,7 +64,7 @@ TEST(ShaderCompileGeneratorTest, BothModeShaderHasOfflineSpirV)
   EXPECT_FALSE(shader.spirv.empty());
 
   const auto spv_blob =
-      shader_compile_manifest::shader_compile_manifest_view.read(
+      shader_compile_manifest::view.read(
           "/shaders/spv/triangle_both.spv");
   EXPECT_FALSE(spv_blob.empty());
   EXPECT_EQ(shader_compile_manifest::find_spirv_shader("triangle_both"),
@@ -84,7 +85,7 @@ TEST(ShaderCompileGeneratorTest, SpirVMagicInEmbeddedBlob)
   const SpirVShaderDesc &shader =
       shader_compile_manifest::shaders::triangle_frag;
 
-  const auto data = shader_compile_manifest::shader_compile_manifest_view.read(
+  const auto data = shader_compile_manifest::view.read(
       shader.vfs_path);
   ASSERT_GE(data.size(), 4u);
   uint32_t magic = 0;
@@ -101,10 +102,36 @@ TEST(ShaderCompileGeneratorTest, JitCompileSlangShader)
   ASSERT_TRUE(compiler.createSession({}, {}, shader.options));
 
   const auto result = compileSlangShader(
-      compiler, shader, shader_compile_manifest::shader_compile_manifest_view);
+      compiler, shader, shader_compile_manifest::view);
   EXPECT_TRUE(result.success) << result.diagnostic;
   EXPECT_GE(result.binary.size(), 4u);
   EXPECT_EQ(result.binary.front(), 0x07230203u);
+}
+
+TEST(ShaderCompileGeneratorTest, AggregateDescriptorTables)
+{
+  EXPECT_EQ(shader_compile_manifest::slang_module_count, 1u);
+  ASSERT_EQ(std::size(shader_compile_manifest::slang_module_ptrs), 1u);
+  EXPECT_EQ(shader_compile_manifest::slang_module_ptrs[0]->manifest_name,
+            "math");
+
+  EXPECT_EQ(shader_compile_manifest::slang_shader_count, 2u);
+  ASSERT_EQ(std::size(shader_compile_manifest::slang_shader_ptrs), 2u);
+
+  EXPECT_EQ(shader_compile_manifest::spirv_shader_count, 1u);
+  ASSERT_EQ(std::size(shader_compile_manifest::spirv_shader_ptrs), 1u);
+  EXPECT_EQ(shader_compile_manifest::spirv_shader_ptrs[0]->manifest_name,
+            "triangle_frag");
+}
+
+TEST(ShaderCompileGeneratorTest, FindUsesSortedLookup)
+{
+  EXPECT_NE(shader_compile_manifest::find_slang_shader("triangle_both"),
+            nullptr);
+  EXPECT_NE(shader_compile_manifest::find_slang_shader("triangle_vert"),
+            nullptr);
+  EXPECT_EQ(shader_compile_manifest::find_slang_shader("triangle_frag"),
+            nullptr);
 }
 
 } // namespace

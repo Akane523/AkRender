@@ -8,16 +8,44 @@
 #include <cstddef>
 #include <span>
 #include <string_view>
+#include <utility>
 
 namespace {{ namespace_name }}
 {
 
+namespace detail
+{
+
+template<typename T>
+constexpr const T *find_by_sorted_name(
+    ::std::string_view name,
+    const ::std::pair<::std::string_view, const T *> *index,
+    ::std::size_t count) noexcept
+{
+  ::std::size_t lo = 0;
+  ::std::size_t hi = count;
+  while (lo < hi)
+  {
+    const ::std::size_t mid = lo + (hi - lo) / 2;
+    const auto &entry = index[mid];
+    if (name < entry.first)
+      hi = mid;
+    else if (name > entry.first)
+      lo = mid + 1;
+    else
+      return entry.second;
+  }
+  return nullptr;
+}
+
+} // namespace detail
+
 // ═══════════════════════════════════════════════════════════════════
 //  Virtual File System nodes (flat array, constexpr-safe)
 // ═══════════════════════════════════════════════════════════════════
-constexpr ::AkRender::ShaderSet::Node {{ fs_var }}_nodes[] = {
-{% for node in nodes %}
-{% if node.is_file %}
+constexpr ::AkRender::ShaderSet::Node fs_nodes[] = {
+{%- for node in nodes -%}
+{%- if node.is_file %}
     ::AkRender::ShaderSet::Node{
         "{{ node.name }}",
         ::AkRender::ShaderSet::Record{
@@ -25,7 +53,7 @@ constexpr ::AkRender::ShaderSet::Node {{ fs_var }}_nodes[] = {
             {{ node.record.size }}
         }
     },
-{% else %}
+{%- else %}
     ::AkRender::ShaderSet::Node{
         "{{ node.name }}",
         ::AkRender::ShaderSet::ChildRange{
@@ -33,13 +61,13 @@ constexpr ::AkRender::ShaderSet::Node {{ fs_var }}_nodes[] = {
             {{ node.children.num_children }}
         }
     },
-{% endif %}
-{% endfor %}
+{%- endif %}
+{%- endfor %}
 };
 
 /// Read-only virtual filesystem over the embedded shader resources.
 inline constexpr ::AkRender::ShaderSet::VirtualFileSystem
-    {{ fs_var }}{ {{ fs_var }}_nodes, {{ node_count }} };
+    fs{ fs_nodes, {{ node_count }} };
 
 // ═══════════════════════════════════════════════════════════════════
 //  VirtualFileSystemView — VFS + blob (defined in the .cpp)
@@ -48,112 +76,140 @@ inline constexpr ::AkRender::ShaderSet::VirtualFileSystem
 /// Runtime view that pairs the compile-time VFS with the embedded
 /// blob data.  Use \c read() to obtain a \c span<const std::byte>
 /// for any registered file path.
-extern const ::AkRender::ShaderSet::VirtualFileSystemView {{ view_var }};
+extern const ::AkRender::ShaderSet::VirtualFileSystemView view;
 
 /// Embedded blob storage (defined in the .cpp).
-extern const ::std::byte {{ blob_var }}_data[];
-extern const ::std::size_t {{ blob_var }}_size;
+extern const ::std::byte blob_data[];
+extern const ::std::size_t blob_size;
 
-{% if binary_resource_count > 0 %}
+{%- if binary_resource_count > 0 %}
 // ═══════════════════════════════════════════════════════════════════
 //  Binary resources (manifest-registered files)
 // ═══════════════════════════════════════════════════════════════════
 
 namespace resources
 {
-{% for resource in binary_resources %}
+{%- for resource in binary_resources -%}
 inline constexpr ::AkRender::ShaderSet::BinaryResourceDesc {{ resource.ident }}{
     "{{ resource.name }}",
     "{{ resource.vfs_path }}",
     ::AkRender::ShaderSet::Record{ {{ resource.offset }}, {{ resource.size }} },
 };
-{% endfor %}
+{%- endfor %}
 } // namespace resources
 
 inline constexpr ::AkRender::ShaderSet::BinaryResourceDesc
-    {{ binary_table_var }}[] = {
-{% for resource in binary_resources %}
-  resources::{{ resource.ident }},
-{% endfor %}
+    binary_resources[] = {
+{%- for resource in binary_resources -%}
+    resources::{{ resource.ident }},
+{%- endfor %}
 };
 
-inline constexpr ::std::size_t {{ binary_table_var }}_count =
-    ::std::size({{ binary_table_var }});
+inline constexpr ::std::size_t binary_resource_count =
+    ::std::size(binary_resources);
+
+namespace detail
+{
+inline constexpr ::std::pair<::std::string_view,
+                             const ::AkRender::ShaderSet::BinaryResourceDesc *>
+    binary_resource_index[] = {
+{%- for resource in binary_resources %}
+    { "{{ resource.name }}", &resources::{{ resource.ident }} },
+{%- endfor %}
+};
+} // namespace detail
 
 constexpr const ::AkRender::ShaderSet::BinaryResourceDesc *
 find_binary_resource(::std::string_view name) noexcept
 {
-{% for resource in binary_resources %}
-  if (name == "{{ resource.name }}")
-    return &resources::{{ resource.ident }};
-{% endfor %}
-  return nullptr;
+  return detail::find_by_sorted_name(
+      name, detail::binary_resource_index,
+      ::std::size(detail::binary_resource_index));
 }
 
-{% endif %}
-{% if slang_module_count > 0 %}
+{%- endif %}
+{%- if slang_module_count > 0 %}
 // ═══════════════════════════════════════════════════════════════════
 //  Pre-compiled Slang modules
 // ═══════════════════════════════════════════════════════════════════
 
 namespace modules
 {
-{% for module in slang_modules %}
+{%- for module in slang_modules %}
 inline constexpr ::AkRender::ShaderSet::SlangModuleDesc {{ module.ident }}{
     "{{ module.name }}",
     "{{ module.import_name }}",
     "{{ module.vfs_path }}",
     ::AkRender::ShaderSet::Record{ {{ module.offset }}, {{ module.size }} },
 };
-{% endfor %}
+{%- endfor %}
 } // namespace modules
+
+inline constexpr const ::AkRender::ShaderSet::SlangModuleDesc *
+    slang_module_ptrs[] = {
+{%- for module in slang_modules %}
+    &modules::{{ module.ident }},
+{%- endfor %}
+};
+
+inline constexpr ::std::size_t slang_module_count =
+    ::std::size(slang_module_ptrs);
+
+namespace detail
+{
+inline constexpr ::std::pair<::std::string_view,
+                             const ::AkRender::ShaderSet::SlangModuleDesc *>
+    slang_module_index[] = {
+{%- for module in slang_modules %}
+    { "{{ module.name }}", &modules::{{ module.ident }} },
+{%- endfor %}
+};
+} // namespace detail
 
 constexpr const ::AkRender::ShaderSet::SlangModuleDesc *
 find_slang_module(::std::string_view name) noexcept
 {
-{% for module in slang_modules %}
-  if (name == "{{ module.name }}")
-    return &modules::{{ module.ident }};
-{% endfor %}
-  return nullptr;
+  return detail::find_by_sorted_name(
+      name, detail::slang_module_index,
+      ::std::size(detail::slang_module_index));
 }
 
-{% endif %}
-{% if slang_shader_count > 0 or spirv_shader_count > 0 %}
+{%- endif %}
+{%- if slang_shader_count > 0 or spirv_shader_count > 0 %}
 // ═══════════════════════════════════════════════════════════════════
 //  Shader descriptors
 // ═══════════════════════════════════════════════════════════════════
 
 namespace shaders
 {
-{% if slang_shader_count > 0 %}
-{% for shader in slang_shaders %}
-{% if shader.dep_count > 0 %}
+{%- if slang_shader_count > 0 %}
+{%- for shader in slang_shaders %}
+{%- if shader.dep_count > 0 %}
 inline constexpr ::AkRender::ShaderSet::SlangModuleDesc
     {{ shader.ident }}_module_deps[] = {
-{% for dep in shader.dep_idents %}
-  modules::{{ dep }},
-{% endfor %}
+{%- for dep in shader.dep_idents %}
+    modules::{{ dep }},
+{%- endfor %}
 };
-{% endif %}
+{%- endif %}
 inline constexpr ::AkRender::ShaderSet::SlangShaderDesc {{ shader.ident }}{
     "{{ shader.name }}",
     "{{ shader.vfs_path }}",
     ::AkRender::ShaderSet::Record{ {{ shader.offset }}, {{ shader.size }} },
-{% if shader.has_spirv %}
+{%- if shader.has_spirv %}
     ::AkRender::ShaderSet::Record{ {{ shader.spirv_offset }}, {{ shader.spirv_size }} },
-{% else %}
+{%- else %}
     ::AkRender::ShaderSet::Record{},
-{% endif %}
+{%- endif %}
     "{{ shader.entry_point }}",
     ::AkRender::ShaderSet::Stage::{{ shader.stage }},
-{% if shader.dep_count > 0 %}
+{%- if shader.dep_count > 0 %}
     {{ shader.ident }}_module_deps,
     {{ shader.dep_count }},
-{% else %}
+{%- else %}
     nullptr,
     0,
-{% endif %}
+{%- endif %}
     ::AkRender::ShaderSet::CompileOptions{
         ::AkRender::ShaderSet::TargetFormat::{{ shader.target_format }},
         ::AkRender::ShaderSet::OptimizationLevel::{{ shader.optimization }},
@@ -162,10 +218,10 @@ inline constexpr ::AkRender::ShaderSet::SlangShaderDesc {{ shader.ident }}{
         {{ shader.debug_info }},
     },
 };
-{% endfor %}
-{% endif %}
-{% if spirv_shader_count > 0 %}
-{% for shader in spirv_shaders %}
+{%- endfor %}
+{%- endif %}
+{%- if spirv_shader_count > 0 %}
+{%- for shader in spirv_shaders %}
 inline constexpr ::AkRender::ShaderSet::SpirVShaderDesc {{ shader.ident }}{
     "{{ shader.name }}",
     "{{ shader.vfs_path }}",
@@ -173,33 +229,71 @@ inline constexpr ::AkRender::ShaderSet::SpirVShaderDesc {{ shader.ident }}{
     "{{ shader.entry_point }}",
     ::AkRender::ShaderSet::Stage::{{ shader.stage }},
 };
-{% endfor %}
-{% endif %}
+{%- endfor %}
+{%- endif %}
 } // namespace shaders
 
-{% if slang_shader_count > 0 %}
+{%- if slang_shader_count > 0 %}
+inline constexpr const ::AkRender::ShaderSet::SlangShaderDesc *
+    slang_shader_ptrs[] = {
+{%- for shader in slang_shaders %}
+    &shaders::{{ shader.ident }},
+{%- endfor %}
+};
+
+inline constexpr ::std::size_t slang_shader_count =
+    ::std::size(slang_shader_ptrs);
+
+namespace detail
+{
+inline constexpr ::std::pair<::std::string_view,
+                             const ::AkRender::ShaderSet::SlangShaderDesc *>
+    slang_shader_index[] = {
+{%- for shader in slang_shaders %}
+    { "{{ shader.name }}", &shaders::{{ shader.ident }} },
+{%- endfor %}
+};
+} // namespace detail
+
 constexpr const ::AkRender::ShaderSet::SlangShaderDesc *
 find_slang_shader(::std::string_view name) noexcept
 {
-{% for shader in slang_shaders %}
-  if (name == "{{ shader.name }}")
-    return &shaders::{{ shader.ident }};
-{% endfor %}
-  return nullptr;
+  return detail::find_by_sorted_name(
+      name, detail::slang_shader_index,
+      ::std::size(detail::slang_shader_index));
 }
 
-{% endif %}
-{% if spirv_shader_count > 0 %}
+{%- endif %}
+{%- if spirv_shader_count > 0 %}
+inline constexpr const ::AkRender::ShaderSet::SpirVShaderDesc *
+    spirv_shader_ptrs[] = {
+{%- for shader in spirv_shaders %}
+    &shaders::{{ shader.ident }},
+{%- endfor %}
+};
+
+inline constexpr ::std::size_t spirv_shader_count =
+    ::std::size(spirv_shader_ptrs);
+
+namespace detail
+{
+inline constexpr ::std::pair<::std::string_view,
+                             const ::AkRender::ShaderSet::SpirVShaderDesc *>
+    spirv_shader_index[] = {
+{%- for shader in spirv_shaders %}
+    { "{{ shader.name }}", &shaders::{{ shader.ident }} },
+{%- endfor %}
+};
+} // namespace detail
+
 constexpr const ::AkRender::ShaderSet::SpirVShaderDesc *
 find_spirv_shader(::std::string_view name) noexcept
 {
-{% for shader in spirv_shaders %}
-  if (name == "{{ shader.name }}")
-    return &shaders::{{ shader.ident }};
-{% endfor %}
-  return nullptr;
+  return detail::find_by_sorted_name(
+      name, detail::spirv_shader_index,
+      ::std::size(detail::spirv_shader_index));
 }
 
-{% endif %}
-{% endif %}
+{%- endif %}
+{%- endif %}
 } // namespace {{ namespace_name }}

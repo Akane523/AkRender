@@ -24,3 +24,5 @@ Manifest make_manifest()
 }
 
 } // namespace AkRender::ShaderSetGenerator
+
+#include <AkRender/ShaderSetGenerator/ManifestEntry.inc>

@@ -8,16 +8,15 @@ namespace {{ namespace_name }}
 // ═══════════════════════════════════════════════════════════════════
 //  Embedded binary blob
 // ═══════════════════════════════════════════════════════════════════
-const ::std::byte {{ blob_var }}_data[] = {
+const ::std::byte blob_data[] = {
 {{ blob_bytes }}
 };
 
-const ::std::size_t {{ blob_var }}_size = sizeof({{ blob_var }}_data);
+const ::std::size_t blob_size = sizeof(blob_data);
 
 // ═══════════════════════════════════════════════════════════════════
 //  VirtualFileSystemView — binds VFS + blob at link time
 // ═══════════════════════════════════════════════════════════════════
-const ::AkRender::ShaderSet::VirtualFileSystemView
-    {{ view_var }}{ {{ fs_var }}, {{ blob_var }}_data };
+const ::AkRender::ShaderSet::VirtualFileSystemView view{ fs, blob_data };
 
 } // namespace {{ namespace_name }}

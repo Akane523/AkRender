@@ -14,7 +14,7 @@ using namespace AkRender::ShaderSet;
 TEST(ShaderSetRuntimeTest, ReadOfflineSpirV)
 {
   ShaderSetRuntime runtime{
-      shader_compile_manifest::shader_compile_manifest_view};
+      shader_compile_manifest::view};
 
   const auto bytes =
       runtime.spirv(shader_compile_manifest::shaders::triangle_frag);
@@ -27,7 +27,7 @@ TEST(ShaderSetRuntimeTest, ReadOfflineSpirV)
 TEST(ShaderSetRuntimeTest, ReadBothModeOfflineSpirV)
 {
   ShaderSetRuntime runtime{
-      shader_compile_manifest::shader_compile_manifest_view};
+      shader_compile_manifest::view};
 
   const auto bytes =
       runtime.spirv(shader_compile_manifest::shaders::triangle_both);
@@ -40,7 +40,7 @@ TEST(ShaderSetRuntimeTest, ReadBothModeOfflineSpirV)
 TEST(ShaderSetRuntimeTest, ModuleCacheAvoidsDuplicateLoads)
 {
   ShaderSetRuntime runtime{
-      shader_compile_manifest::shader_compile_manifest_view};
+      shader_compile_manifest::view};
 
   EXPECT_TRUE(
       runtime.ensureModuleLoaded(shader_compile_manifest::modules::math));
@@ -51,7 +51,7 @@ TEST(ShaderSetRuntimeTest, ModuleCacheAvoidsDuplicateLoads)
 TEST(ShaderSetRuntimeTest, JitCompileViaRuntime)
 {
   ShaderSetRuntime runtime{
-      shader_compile_manifest::shader_compile_manifest_view};
+      shader_compile_manifest::view};
 
   const auto result =
       runtime.compile(shader_compile_manifest::shaders::triangle_vert);
@@ -63,7 +63,7 @@ TEST(ShaderSetRuntimeTest, JitCompileViaRuntime)
 TEST(ShaderSetRuntimeTest, ReusesSessionForSameOptions)
 {
   ShaderSetRuntime runtime{
-      shader_compile_manifest::shader_compile_manifest_view};
+      shader_compile_manifest::view};
 
   const auto first =
       runtime.compile(shader_compile_manifest::shaders::triangle_vert);

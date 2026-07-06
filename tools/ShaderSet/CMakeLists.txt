@@ -50,6 +50,8 @@ if (AKRENDER_SHADER_BUILD_TEST)
 
     set(_test_manifest_gen_dir
         "${CMAKE_CURRENT_BINARY_DIR}/tests/GeneratorExample")
+    set(_shader_compile_manifest_gen_dir
+        "${CMAKE_CURRENT_BINARY_DIR}/tests/ShaderCompileExample")
 
     add_executable(AkRenderShaderTest
         tests/VirtualFileSystemTest.cpp
@@ -64,6 +66,7 @@ if (AKRENDER_SHADER_BUILD_TEST)
         tests/ShaderCompileTest.cpp
         tests/ShaderDescriptorTest.cpp
         tests/ShaderSetRuntimeTest.cpp
+        tests/DepfileTest.cpp
         src/ShaderSetGenerator/Manifest.cpp
         src/ShaderSetGenerator/VirtualPath.cpp
         src/ShaderSetGenerator/PathMapping.cpp
@@ -82,6 +85,10 @@ if (AKRENDER_SHADER_BUILD_TEST)
         GTest::gtest_main
     )
     target_compile_options(AkRenderShaderTest PRIVATE -Wno-deprecated-declarations)
+    target_compile_definitions(AkRenderShaderTest PRIVATE
+        "TEST_MANIFEST_DEPFILE=\"${_test_manifest_gen_dir}/test_manifest.d\""
+        "SHADER_COMPILE_MANIFEST_DEPFILE=\"${_shader_compile_manifest_gen_dir}/shader_compile_manifest.d\""
+    )
     add_dependencies(AkRenderShaderTest test_manifest shader_compile_manifest)
 
     add_test(NAME AkRenderShaderUnitTests

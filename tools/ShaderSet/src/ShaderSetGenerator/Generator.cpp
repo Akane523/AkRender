@@ -15,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include <inja/inja.hpp>
@@ -25,7 +26,7 @@ using AkRender::ShaderSetGenerator::BlobSegment;
 using AkRender::ShaderSetGenerator::BlobSegmentKind;
 using AkRender::ShaderSetGenerator::compile_manifest_shaders;
 using AkRender::ShaderSetGenerator::make_cpp_identifier;
-using AkRender::ShaderSetGenerator::make_manifest;
+using AkRender::ShaderSetGenerator::detail::load_manifest;
 using AkRender::ShaderSetGenerator::Manifest;
 using AkRender::ShaderSetGenerator::ShaderCodegenData;
 using AkRender::ShaderSetGenerator::validate;
@@ -203,6 +204,23 @@ static void flatten_dfs(const std::vector<TrieNode> &trie, std::size_t node_idx,
 
 static constexpr std::size_t kBytesPerLine = 12;
 
+static void sort_json_by_name(inja::json &entries)
+{
+  std::sort(entries.begin(), entries.end(),
+            [](const inja::json &a, const inja::json &b)
+            {
+              return a.at("name").get<std::string>()
+                     < b.at("name").get<std::string>();
+            });
+}
+
+static fs::path normalize_dep_path(const fs::path &path)
+{
+  std::error_code ec;
+  const fs::path canonical = fs::weakly_canonical(path, ec);
+  return ec ? fs::absolute(path) : canonical;
+}
+
 /// Format a contiguous byte range as C++ \c ::std::byte{ 0xXX } literals
 /// suitable for direct injection into inja template output.
 static std::string format_blob_bytes(const std::vector<std::byte> &blob)
@@ -245,7 +263,7 @@ struct ShaderSetGenerator
     std::vector<ValidationError> errors;
   };
 
-  ShaderSetGenerator() : ShaderSetGenerator(make_manifest())
+  ShaderSetGenerator() : ShaderSetGenerator(load_manifest())
   {
   }
   explicit ShaderSetGenerator(Manifest manifest)
@@ -307,6 +325,10 @@ struct ShaderSetGenerator
     // ── render templates ──────────────────────────────────────────
     log_verbose("rendering generated sources …");
 
+    sort_json_by_name(m_slang_modules);
+    sort_json_by_name(m_slang_shaders);
+    sort_json_by_name(m_spirv_shaders);
+
     const auto hpp_filename = m_shader_set_name + ".hpp"s;
 
     render_header(nodes, resources, hpp_filename);
@@ -319,8 +341,8 @@ struct ShaderSetGenerator
 
       const auto cpp_filename =
           hpp_filename.substr(0, hpp_filename.find_last_of('.')) + ".cpp";
-      const fs::path hpp_out = m_binary_dir / hpp_filename;
-      const fs::path cpp_out = m_binary_dir / cpp_filename;
+      const fs::path hpp_out = normalize_dep_path(m_binary_dir / hpp_filename);
+      const fs::path cpp_out = normalize_dep_path(m_binary_dir / cpp_filename);
 
       for (const Config::BinaryResource *entry : m_manifest.binary_resources())
       {
@@ -331,12 +353,15 @@ struct ShaderSetGenerator
         if (src.is_relative())
           src = m_source_dir / src;
 
-        m_depfile[hpp_out].push_back(src);
-        m_depfile[cpp_out].push_back(src);
+        add_dep(hpp_out, src);
+        add_dep(cpp_out, src);
       }
 
       for (const fs::path &src : shader_data.source_dependencies)
-        m_depfile[hpp_out].push_back(src);
+      {
+        add_dep(hpp_out, src);
+        add_dep(cpp_out, src);
+      }
 
       write_depfile();
     }
@@ -571,7 +596,7 @@ private:
 
     std::string ident = make_cpp_identifier(m_shader_set_name);
 
-    std::vector<inja::json> binary_resources;
+    inja::json binary_resources = inja::json::array();
     for (std::size_t i = 0; i < resources.size(); ++i)
     {
       const ResourceInput &resource = resources[i];
@@ -587,15 +612,12 @@ private:
           {"index", binary_resources.size()},
       });
     }
+    sort_json_by_name(binary_resources);
 
     return {
         {"shader_set_name", m_shader_set_name},
         {"namespace_name", ident},
         {"node_count", nodes.size()},
-        {"fs_var", ident + "_fs"},
-        {"blob_var", ident + "_blob"},
-        {"view_var", ident + "_view"},
-        {"binary_table_var", ident + "_binary_resources"},
         {"binary_resource_count", binary_resources.size()},
         {"binary_resources", binary_resources},
         {"slang_module_count", m_slang_modules.size()},
@@ -624,6 +646,14 @@ private:
       std::cerr << msg << '\n';
   }
 
+  void add_dep(const fs::path &target, fs::path dep)
+  {
+    dep = normalize_dep_path(std::move(dep));
+    std::vector<fs::path> &deps = m_depfile[target];
+    if (std::find(deps.begin(), deps.end(), dep) == deps.end())
+      deps.push_back(std::move(dep));
+  }
+
   void write_depfile()
   {
     if (m_depfile_path.empty())
@@ -648,8 +678,11 @@ private:
 
     for (const auto &[target, deps] : m_depfile)
     {
+      std::vector<fs::path> unique_deps = deps;
+      std::sort(unique_deps.begin(), unique_deps.end());
+
       ofs << quote_path(target) << ':';
-      for (const auto &dep : deps)
+      for (const auto &dep : unique_deps)
         ofs << ' ' << quote_path(dep);
       ofs << '\n';
     }
@@ -663,7 +696,6 @@ int main(int argc, char **argv)
 
   fs::path source_dir;
   fs::path binary_dir;
-  fs::path config_file;
   fs::path template_dir;
   std::string shader_set_name;
   bool verbose = false;
@@ -676,9 +708,6 @@ int main(int argc, char **argv)
   app.add_option("-b,--binary-dir", binary_dir,
                  "Output directory for generated shader artifacts")
       ->default_val(fs::current_path());
-
-  app.add_option("-c,--config", config_file,
-                 "Path to manifest configuration file (JSON)");
 
   app.add_option("-n,--name", shader_set_name,
                  "Name of the shader set (used as C++ namespace / prefix)")
@@ -720,8 +749,8 @@ int main(int argc, char **argv)
                                    ? generator.m_binary_dir / depfile_path
                                    : depfile_path;
 
-  // TODO: In the future, load manifest from config_file (JSON or .cpp)
-  //       For now the default constructor calls make_manifest().
+  // Manifest content comes from the linked manifest.cpp (ManifestEntry.inc).
+  // JSON / data-driven configuration is not implemented.
 
   try
   {

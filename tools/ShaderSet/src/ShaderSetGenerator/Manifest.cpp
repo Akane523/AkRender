@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <stdexcept>
 #include <vector>
 
 namespace AkRender::ShaderSetGenerator
@@ -189,5 +190,32 @@ std::vector<const Config::SlangShader *> Manifest::slang_shaders() const
     ptrs.push_back(&item);
   return ptrs;
 }
+
+namespace detail
+{
+
+ManifestBuilderFn &manifest_builder_slot()
+{
+  static ManifestBuilderFn slot = nullptr;
+  return slot;
+}
+
+void register_manifest_builder(ManifestBuilderFn builder)
+{
+  manifest_builder_slot() = builder;
+}
+
+Manifest load_manifest()
+{
+  if (ManifestBuilderFn builder = manifest_builder_slot())
+    return builder();
+  throw std::runtime_error(
+      "ShaderSetGenerator: no manifest entry point registered.\n"
+      "Provide AkRender::ShaderSetGenerator::Manifest make_manifest() in "
+      "the manifest source passed to add_shader_set(), and end the file "
+      "with #include <AkRender/ShaderSetGenerator/ManifestEntry.inc>.");
+}
+
+} // namespace detail
 
 } // namespace AkRender::ShaderSetGenerator

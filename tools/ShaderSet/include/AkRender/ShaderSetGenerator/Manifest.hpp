@@ -214,12 +214,30 @@ private:
   std::unique_ptr<Impl> m_impl;
 };
 
+namespace detail
+{
+
+using ManifestBuilderFn = Manifest (*)();
+
+void register_manifest_builder(ManifestBuilderFn builder);
+
+/// Called by ShaderSetGenerator; \c nullptr registration yields a clear error.
+[[nodiscard]] Manifest load_manifest();
+
+} // namespace detail
+
 // --- External interface ------------
 
-/// \brief Create a manifest used to generate Shader Set.
+/// \brief Create a manifest used to generate a Shader Set.
 ///
-/// The implementation should be provided by the user of the shader set
-/// generator.
+/// Implement this in the manifest source passed to \c add_shader_set().
+/// The function must live in namespace \c AkRender::ShaderSetGenerator and
+/// the translation unit must end with
+/// \c #include <AkRender/ShaderSetGenerator/ManifestEntry.inc>, which registers
+/// the entry point at static initialization time.
+///
+/// Data-driven JSON manifest configuration was planned but is indefinitely
+/// deferred; manifests are C++ only.
 Manifest make_manifest();
 
 } // namespace AkRender::ShaderSetGenerator
