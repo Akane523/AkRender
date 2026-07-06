@@ -7,7 +7,7 @@ A toy renderer built with **Slang** shaders and **Vulkan** API.
 - **CMake** ≥ 3.21
 - **vcpkg** (with `VCPKG_ROOT` environment variable set)
 - **Vulkan SDK** (≥ 1.3)
-- C++20 compiler (GCC ≥ 11, Clang ≥ 14, MSVC ≥ 2022)
+- C++23 compiler (GCC ≥ 11, Clang ≥ 14, MSVC ≥ 2022)
 
 ## Dependencies (managed via vcpkg)
 
@@ -20,6 +20,9 @@ A toy renderer built with **Slang** shaders and **Vulkan** API.
 | spdlog | Logging |
 | stb | Image loading |
 | Slang | Shader language & compiler |
+| inja | ShaderSet code generation templates |
+| CLI11 | ShaderSet generator CLI |
+| GTest | Unit tests |
 
 ## Build
 
@@ -35,18 +38,22 @@ cmake --preset release
 cmake --build --preset release
 ```
 
-Shaders in `shaders/` are automatically compiled to SPIR-V during the build.
+Shader compilation and embedding are handled by **ShaderSet** (`tools/ShaderSet`).
+See [tools/ShaderSet/README.md](tools/ShaderSet/README.md) and
+[docs/shader-build-system-design.md](docs/shader-build-system-design.md) for details.
 
-## Project Structure
+## ShaderSet (shader build system)
 
+Shader manifests are written in C++ and compiled into embedded shader sets at build time:
+
+```cmake
+find_package(AkRenderShaderSet REQUIRED)
+
+add_shader_set(my_shaders path/to/manifest.cpp)
+target_link_libraries(my_app PRIVATE my_shaders AkRenderShaderSet::AkRenderShaderSet)
 ```
-AkRender/
-├── CMakeLists.txt          # Top-level CMake
-├── CMakePresets.json       # Build presets (debug / release)
-├── vcpkg.json              # vcpkg manifest
-├── src/
-│   ├── CMakeLists.txt
-│   └── main.cpp            # Entry point
-└── shaders/
-    └── triangle.slang      # Example Slang shader
-```
+
+Example manifests live under `tools/ShaderSet/tests/`:
+
+- `GeneratorExample/` — file embedding and VFS layout
+- `ShaderCompileExample/` — Slang module + SPIR-V/IR build-time compilation

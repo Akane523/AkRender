@@ -19,11 +19,8 @@ endif()
 # ── CMake module path ────────────────────────────────────────────────────────
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-# ── Include Slang modules ────────────────────────────────────────────────────
-find_package(slang CONFIG REQUIRED)
-include(SlangShaderCompiler)
-
 # ── Find dependencies ────────────────────────────────────────────────────────
+find_package(slang CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
@@ -85,12 +82,6 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/AkRender"
 
 install(EXPORT AkRenderTargets
     NAMESPACE AkRender::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AkRender
-)
-
-# Install CMake modules so consumers can do find_package(AkRender)
-install(FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SlangShaderCompiler.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AkRender
 )
 
