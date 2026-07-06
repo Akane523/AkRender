@@ -49,4 +49,50 @@ inline constexpr ::AkRender::ShaderSet::VirtualFileSystem
 /// for any registered file path.
 extern const ::AkRender::ShaderSet::VirtualFileSystemView {{ view_var }};
 
+{% if binary_resource_count > 0 %}
+// ═══════════════════════════════════════════════════════════════════
+//  Typed binary resource descriptors
+// ═══════════════════════════════════════════════════════════════════
+
+struct BinaryResourceDesc
+{
+  ::std::string_view name;
+  ::std::string_view vfs_path;
+  ::AkRender::ShaderSet::Record data;
+};
+
+inline constexpr BinaryResourceDesc {{ binary_table_var }}[] = {
+{% for resource in binary_resources %}
+    {
+        "{{ resource.name }}",
+        "{{ resource.vfs_path }}",
+        ::AkRender::ShaderSet::Record{ {{ resource.offset }}, {{ resource.size }} },
+    },
+{% endfor %}
+};
+
+inline constexpr ::std::size_t {{ binary_table_var }}_count =
+    ::std::size({{ binary_table_var }});
+
+constexpr const BinaryResourceDesc *
+find_binary_resource(::std::string_view name) noexcept
+{
+{% for resource in binary_resources %}
+  if (name == "{{ resource.name }}")
+    return &{{ binary_table_var }}[{{ resource.index }}];
+{% endfor %}
+  return nullptr;
+}
+
+namespace resources
+{
+{% for resource in binary_resources %}
+inline constexpr ::AkRender::ShaderSet::Record {{ resource.ident }}{
+    {{ resource.offset }}, {{ resource.size }} };
+inline constexpr ::std::string_view {{ resource.ident }}_vfs =
+    "{{ resource.vfs_path }}";
+{% endfor %}
+} // namespace resources
+
+{% endif %}
 } // namespace {{ namespace_name }}

@@ -12,14 +12,10 @@ namespace AkRender::ShaderSetGenerator
 
 Manifest make_manifest()
 {
-  using namespace Config;
   Manifest manifest;
 
-  // --- Example: add a binary resource ---
-  if (auto *res = manifest.add_binary_resource("example_data"))
-  {
-    res->source_path = "binary-resource.txt";
-  }
+  manifest.embed_at("example_data", {"binary-resource.txt"},
+                    Config::VirtualPath{"/example_data"});
 
   return manifest;
 }

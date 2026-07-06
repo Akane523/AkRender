@@ -6,9 +6,14 @@
 
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
 
+#include <AkRender/ShaderSetGenerator/EmbedBatch.hpp>
+#include <AkRender/ShaderSetGenerator/VirtualPath.hpp>
+
 #include <algorithm>
 #include <deque>
+#include <stdexcept>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 namespace AkRender::ShaderSetGenerator
@@ -20,6 +25,8 @@ struct Manifest::Impl
   std::deque<Config::SpirV_Shader> spirv_shaders;
   std::deque<Config::SlangModule> slang_modules;
   std::deque<Config::SlangShader> slang_shaders;
+  std::filesystem::path source_root;
+  Config::VirtualPath vfs_prefix;
 };
 
 Manifest::Manifest() : m_impl(std::make_unique<Impl>())
@@ -36,6 +43,142 @@ Config::BinaryResource *Manifest::add_binary_resource(std::string name)
   auto &item = m_impl->binary_resources.emplace_back();
   item.name = std::move(name);
   return &item;
+}
+
+void Manifest::set_source_root(std::filesystem::path root)
+{
+  m_impl->source_root = std::move(root);
+}
+
+const std::filesystem::path &Manifest::source_root() const
+{
+  return m_impl->source_root;
+}
+
+void Manifest::set_vfs_prefix(Config::VirtualPath prefix)
+{
+  m_impl->vfs_prefix = std::move(prefix);
+}
+
+const Config::VirtualPath &Manifest::vfs_prefix() const
+{
+  return m_impl->vfs_prefix;
+}
+
+VfsPrefixScope Manifest::push_vfs_prefix(Config::VirtualPath prefix)
+{
+  return VfsPrefixScope(*this, std::move(prefix));
+}
+
+SourceRootScope Manifest::push_source_root(std::filesystem::path root)
+{
+  return SourceRootScope(*this, std::move(root));
+}
+
+EmbedBatch Manifest::embed_batch()
+{
+  return EmbedBatch(*this);
+}
+
+Config::BinaryResource *Manifest::embed_at(std::string name,
+                                           Config::SourcePath source,
+                                           Config::VirtualPath absolute_vfs)
+{
+  auto normalized = Config::normalize_vfs_path(absolute_vfs.value);
+  if (!normalized)
+    throw std::invalid_argument(normalized.error());
+
+  auto *resource = add_binary_resource(std::move(name));
+  resource->source_path = std::move(source);
+  resource->seek_type = Config::Embed{*normalized};
+  return resource;
+}
+
+Manifest &Manifest::embed_parallel(
+    Config::VirtualPath vfs_prefix, std::filesystem::path source_root,
+    std::initializer_list<std::pair<std::string, Config::SourcePath>> files)
+{
+  auto batch = embed_batch()
+                   .vfs_prefix(std::move(vfs_prefix))
+                   .source_root(std::move(source_root))
+                   .map_parallel();
+  batch.files(files);
+  return *this;
+}
+
+Manifest &Manifest::embed_tree(std::filesystem::path source_dir,
+                               Config::VirtualPath vfs_prefix,
+                               TreeNamePolicy name_policy)
+{
+  namespace fs = std::filesystem;
+
+  if (source_dir.empty())
+    throw std::invalid_argument("embed_tree source_dir is empty");
+
+  if (vfs_prefix.empty())
+    throw std::invalid_argument("embed_tree requires a vfs prefix");
+
+  fs::path tree_root = source_dir;
+  if (!tree_root.is_absolute() && !m_impl->source_root.empty())
+    tree_root = m_impl->source_root / tree_root;
+
+  std::error_code ec;
+  if (!fs::exists(tree_root, ec) || !fs::is_directory(tree_root, ec))
+  {
+    throw std::invalid_argument("embed_tree source_dir is not a directory: " +
+                                tree_root.generic_string());
+  }
+
+  std::unordered_set<std::string> seen_names;
+  auto batch = embed_batch()
+                   .vfs_prefix(std::move(vfs_prefix))
+                   .source_root(source_dir)
+                   .map_parallel();
+
+  for (const fs::directory_entry &entry :
+       fs::recursive_directory_iterator(tree_root, ec))
+  {
+    if (ec)
+    {
+      throw std::invalid_argument("embed_tree failed to iterate '" +
+                                  tree_root.generic_string() + "': " +
+                                  ec.message());
+    }
+
+    if (!entry.is_regular_file(ec))
+      continue;
+
+    const fs::path rel = fs::relative(entry.path(), tree_root, ec);
+    if (ec || rel.empty())
+      continue;
+
+    std::string name;
+    switch (name_policy)
+    {
+    case TreeNamePolicy::RelativePath:
+    {
+      name = rel.generic_string();
+      std::replace(name.begin(), name.end(), '/', '_');
+      break;
+    }
+    case TreeNamePolicy::Stem:
+      name = rel.stem().generic_string();
+      break;
+    }
+
+    if (name.empty())
+      throw std::invalid_argument("embed_tree produced an empty resource name");
+
+    if (!seen_names.insert(name).second)
+    {
+      throw std::invalid_argument("embed_tree duplicate resource name '" +
+                                  name + "'");
+    }
+
+    batch.file(name, Config::SourcePath{rel});
+  }
+
+  return *this;
 }
 
 Config::SpirV_Shader *Manifest::add_spirv_shader(std::string name)

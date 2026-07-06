@@ -71,6 +71,10 @@ function(add_shader_set name manifest_source)
         "${_template_dir}/ShaderSet.cpp.inja"
         "${_generator_src_dir}/Generator.cpp"
         "${_generator_src_dir}/Manifest.cpp"
+        "${_generator_src_dir}/VirtualPath.cpp"
+        "${_generator_src_dir}/PathMapping.cpp"
+        "${_generator_src_dir}/EmbedBatch.cpp"
+        "${_generator_src_dir}/Validate.cpp"
     )
         if(NOT EXISTS "${_required}")
             message(FATAL_ERROR
@@ -115,6 +119,10 @@ function(add_shader_set name manifest_source)
     add_executable(${name}_generator
         "${_generator_src_dir}/Generator.cpp"
         "${_generator_src_dir}/Manifest.cpp"
+        "${_generator_src_dir}/VirtualPath.cpp"
+        "${_generator_src_dir}/PathMapping.cpp"
+        "${_generator_src_dir}/EmbedBatch.cpp"
+        "${_generator_src_dir}/Validate.cpp"
         "${manifest_source_real}"
     )
     target_link_libraries(${name}_generator PRIVATE

@@ -47,4 +47,23 @@ TEST(ShaderSetGeneratorTest, ViewDelegatesToFilesystem)
   EXPECT_TRUE(test_manifest::test_manifest_view.read("/missing").empty());
 }
 
+TEST(ShaderSetGeneratorTest, TypedBinaryResourceLookup)
+{
+  const test_manifest::BinaryResourceDesc *desc =
+      test_manifest::find_binary_resource("example_data");
+  ASSERT_NE(desc, nullptr);
+  EXPECT_EQ(desc->name, "example_data");
+  EXPECT_EQ(desc->vfs_path, "/example_data");
+  EXPECT_EQ(desc->data.offset, 0u);
+  EXPECT_EQ(desc->data.size, 21u);
+}
+
+TEST(ShaderSetGeneratorTest, TypedResourceConstants)
+{
+  EXPECT_EQ(test_manifest::resources::example_data.offset, 0u);
+  EXPECT_EQ(test_manifest::resources::example_data.size, 21u);
+  EXPECT_EQ(test_manifest::resources::example_data_vfs, "/example_data");
+  EXPECT_EQ(test_manifest::find_binary_resource("missing"), nullptr);
+}
+
 } // namespace

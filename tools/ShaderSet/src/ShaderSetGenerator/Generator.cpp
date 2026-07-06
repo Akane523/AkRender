@@ -1,9 +1,11 @@
 #include <AkRender/ShaderSetGenerator/Manifest.hpp>
+#include <AkRender/ShaderSetGenerator/Validate.hpp>
 #include <CLI/CLI.hpp>
 
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -19,7 +21,11 @@
 namespace fs = std::filesystem;
 
 using AkRender::ShaderSetGenerator::make_manifest;
+using AkRender::ShaderSetGenerator::make_cpp_identifier;
 using AkRender::ShaderSetGenerator::Manifest;
+using AkRender::ShaderSetGenerator::validate;
+using AkRender::ShaderSetGenerator::ValidateOptions;
+using AkRender::ShaderSetGenerator::ValidationError;
 namespace Config = AkRender::ShaderSetGenerator::Config;
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -127,6 +133,21 @@ static std::string format_blob_bytes(const std::vector<std::byte> &blob)
 
 struct ShaderSetGenerator
 {
+  struct ValidationFailure : std::exception
+  {
+    explicit ValidationFailure(std::vector<ValidationError> errors)
+        : errors(std::move(errors))
+    {
+    }
+
+    const char *what() const noexcept override
+    {
+      return "manifest validation failed";
+    }
+
+    std::vector<ValidationError> errors;
+  };
+
   ShaderSetGenerator() : ShaderSetGenerator(make_manifest())
   {
   }
@@ -141,6 +162,16 @@ struct ShaderSetGenerator
   {
     using namespace std::string_literals;
 
+    const auto validation_errors = validate(
+        m_manifest,
+        ValidateOptions{
+            .manifest_dir = m_source_dir,
+            .require_embedded_resources = true,
+            .check_sources = true,
+        });
+    if (!validation_errors.empty())
+      throw ValidationFailure{validation_errors};
+
     // ── Validate output directory ─────────────────────────────────────
     if (m_binary_dir.empty())
       m_binary_dir = m_source_dir;
@@ -150,26 +181,21 @@ struct ShaderSetGenerator
     // ── collect binary resources from manifest ────────────────────
     log_verbose("collecting binary resources …");
     auto resources = collect_binary_resources();
-    if (resources.empty())
-    {
-      log_verbose("No embedded binary resources found — nothing to generate.");
-      return;
-    }
-
-    // ── build VFS nodes (flat array) ──────────────────────────────
-    log_verbose("building VFS node tree …");
-    auto nodes = build_vfs_nodes(resources);
 
     // ── concatenate blob, assign offsets ──────────────────────────
     log_verbose("concatenating binary blob …");
-    auto blob = concatenate_blob(resources);
+    const auto blob = concatenate_blob(resources);
+
+    // ── build VFS nodes (flat array) ──────────────────────────────
+    log_verbose("building VFS node tree …");
+    const auto nodes = build_vfs_nodes(resources);
 
     // ── render templates ──────────────────────────────────────────
     log_verbose("rendering generated sources …");
 
     const auto hpp_filename = m_shader_set_name + ".hpp"s;
 
-    render_header(nodes, hpp_filename);
+    render_header(nodes, resources, hpp_filename);
     render_source(blob, hpp_filename);
 
     // ── populate depfile ─────────────────────────────────────────
@@ -187,7 +213,7 @@ struct ShaderSetGenerator
         if (!std::holds_alternative<Config::Embed>(entry->seek_type))
           continue;
 
-        fs::path src = entry->source_path;
+        fs::path src = entry->source_path.path;
         if (src.is_relative())
           src = m_source_dir / src;
 
@@ -236,38 +262,24 @@ private:
 
       const auto &embed = std::get<Config::Embed>(entry->seek_type);
 
-      // Determine virtual path
-      std::string vpath;
-      if (!embed.virtual_path.empty())
+      if (embed.virtual_path.empty())
       {
-        vpath = embed.virtual_path.generic_string();
-      }
-      else
-      {
-        // Default: place at root with the resource name
-        vpath = "/" + entry->name;
+        throw std::runtime_error("binary resource \"" + entry->name +
+                                 "\" has no virtual path");
       }
 
-      // Ensure path starts with '/'
-      if (vpath.empty() || vpath.front() != '/')
-        vpath = "/" + vpath;
+      const std::string vpath = embed.virtual_path.value;
 
-      // Read source file
-      fs::path abs_source = entry->source_path;
+      fs::path abs_source = entry->source_path.path;
       if (abs_source.is_relative())
         abs_source = m_source_dir / abs_source;
 
       std::ifstream ifs(abs_source, std::ios::binary | std::ios::ate);
       if (!ifs)
       {
-        if (m_verbose_output)
-        {
-          std::ostringstream oss;
-          oss << "Warning: cannot open binary resource \"" << entry->name
-              << "\" at " << abs_source.string();
-          log_verbose(oss.str());
-        }
-        continue;
+        throw std::runtime_error("cannot open binary resource \"" +
+                                 entry->name + "\" at " +
+                                 abs_source.string());
       }
 
       const auto sz = ifs.tellg();
@@ -398,9 +410,10 @@ private:
   }
 
   void render_header(const std::vector<inja::json> &nodes,
+                     const std::vector<ResourceInput> &resources,
                      const std::string &hpp_filename)
   {
-    auto data = make_template_data(nodes);
+    auto data = make_template_data(nodes, resources);
 
     // ── Render via inja (Environment resolves template path) ──────────
     inja::Environment env(m_template_dir.string() + "/");
@@ -416,7 +429,7 @@ private:
   {
     using namespace std::string_literals;
 
-    auto data = make_template_data({});
+    auto data = make_template_data({}, {});
     // make_template_data filled in fs_var / blob_accessor etc.
     // We just need to override extra fields:
     data["hpp_filename"] = hpp_filename;
@@ -435,26 +448,27 @@ private:
 
   // ── helpers ─────────────────────────────────────────────────────────
 
-  inja::json make_template_data(const std::vector<inja::json> &nodes)
+  inja::json make_template_data(const std::vector<inja::json> &nodes,
+                                const std::vector<ResourceInput> &resources)
   {
     using namespace std::string_literals;
 
-    auto safe_name = [](const std::string &raw) -> std::string
-    {
-      std::string out;
-      for (char ch : raw)
-      {
-        if (std::isalnum(static_cast<unsigned char>(ch)) || ch == '_')
-          out.push_back(ch);
-        else
-          out.push_back('_');
-      }
-      if (out.empty())
-        out = "shader_set";
-      return out;
-    };
+    std::string ident = make_cpp_identifier(m_shader_set_name);
 
-    std::string ident = safe_name(m_shader_set_name);
+    std::vector<inja::json> binary_resources;
+    binary_resources.reserve(resources.size());
+    for (std::size_t i = 0; i < resources.size(); ++i)
+    {
+      const ResourceInput &resource = resources[i];
+      binary_resources.push_back({
+          {"name", resource.name},
+          {"ident", make_cpp_identifier(resource.name)},
+          {"vfs_path", resource.vfs_path},
+          {"offset", resource.blob_offset},
+          {"size", resource.data.size()},
+          {"index", i},
+      });
+    }
 
     return {
         {"shader_set_name", m_shader_set_name},
@@ -463,6 +477,9 @@ private:
         {"fs_var", ident + "_fs"},
         {"blob_var", ident + "_blob"},
         {"view_var", ident + "_view"},
+        {"binary_table_var", ident + "_binary_resources"},
+        {"binary_resource_count", binary_resources.size()},
+        {"binary_resources", binary_resources},
         {"nodes", nodes},
     };
   }
@@ -582,7 +599,27 @@ int main(int argc, char **argv)
   // TODO: In the future, load manifest from config_file (JSON or .cpp)
   //       For now the default constructor calls make_manifest().
 
-  generator.generate();
+  try
+  {
+    generator.generate();
+  }
+  catch (const ShaderSetGenerator::ValidationFailure &failure)
+  {
+    for (const ValidationError &error : failure.errors)
+    {
+      if (error.resource.empty())
+        std::cerr << "error: " << error.message << '\n';
+      else
+        std::cerr << "error: [" << error.resource << "] " << error.message
+                  << '\n';
+    }
+    return 1;
+  }
+  catch (const std::exception &ex)
+  {
+    std::cerr << "error: " << ex.what() << '\n';
+    return 1;
+  }
 
   return 0;
 }

@@ -10,14 +10,20 @@
 
 #pragma once
 
+#include <AkRender/ShaderSetGenerator/EmbedBatch.hpp>
+#include <AkRender/ShaderSetGenerator/PathMapping.hpp>
+#include <AkRender/ShaderSetGenerator/VirtualPath.hpp>
+
+#include <AkRender/SlangJIT/SlangJIT.hpp>
+
 #include <filesystem>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
-
-#include <AkRender/SlangJIT/SlangJIT.hpp>
 
 namespace AkRender::ShaderSetGenerator
 {
@@ -39,10 +45,8 @@ namespace Config
 /// be accessed by VirutalFileSystem at runtime.
 struct Embed
 {
-  /// The path of VirutalFileSystem where the resource will be embedded.
-  /// If the path is empty, the resource is embedded at the root of the virtual
-  /// file system.
-  std::filesystem::path virtual_path{};
+  /// Absolute normalized VFS path where the resource is embedded.
+  VirtualPath virtual_path{};
 };
 
 /// \brief Determines how a resource is located at build time.
@@ -54,8 +58,9 @@ struct BinaryResource
 {
   /// Unique name used to identify this resource.
   std::string name;
-  /// Path to the source file on disk.
-  std::filesystem::path source_path;
+  /// Path to the source file on disk (absolute or relative to the manifest
+  /// source root).
+  SourcePath source_path;
   /// How this resource is located during the build.
   ResourceSeekType seek_type = Embed{};
 };
@@ -148,10 +153,38 @@ public:
 
   // --- Mutators -----------------------------------------------------------
 
-  /// \brief Adds a binary resource.
+  /// \brief Adds a binary resource without VFS/source configuration.
   /// \returns Pointer to the newly added entry (owned by the Manifest).
   ///          The pointer remains valid after subsequent additions.
   Config::BinaryResource *add_binary_resource(std::string name);
+
+  /// \brief Default root for resolving relative \c SourcePath values.
+  void set_source_root(std::filesystem::path root);
+  [[nodiscard]] const std::filesystem::path &source_root() const;
+
+  /// \brief Default VFS prefix used by \c embed_batch().
+  void set_vfs_prefix(Config::VirtualPath prefix);
+  [[nodiscard]] const Config::VirtualPath &vfs_prefix() const;
+
+  [[nodiscard]] VfsPrefixScope push_vfs_prefix(Config::VirtualPath prefix);
+  [[nodiscard]] SourceRootScope
+  push_source_root(std::filesystem::path root);
+
+  [[nodiscard]] EmbedBatch embed_batch();
+
+  /// Embed one file at an explicit absolute VFS path.
+  Config::BinaryResource *embed_at(std::string name, Config::SourcePath source,
+                                   Config::VirtualPath absolute_vfs);
+
+  /// Parallel mapping shorthand: \c vfs_prefix / relative source path.
+  Manifest &embed_parallel(
+      Config::VirtualPath vfs_prefix, std::filesystem::path source_root,
+      std::initializer_list<std::pair<std::string, Config::SourcePath>> files);
+
+  /// Recursively embed every regular file under \p source_dir.
+  Manifest &embed_tree(std::filesystem::path source_dir,
+                       Config::VirtualPath vfs_prefix,
+                       TreeNamePolicy name_policy = TreeNamePolicy::RelativePath);
   /// \brief Adds a SPIR-V shader.
   /// \returns Pointer to the newly added entry (owned by the Manifest).
   ///          The pointer remains valid after subsequent additions.
