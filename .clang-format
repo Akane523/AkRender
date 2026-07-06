@@ -8,6 +8,8 @@ AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: None
 BreakBeforeBraces: Allman
+BreakBeforeBinaryOperators: NonAssignment
+AlignOperands: true
 AlignTrailingComments: true
 SpaceAfterCStyleCast: false
 SpaceBeforeParens: ControlStatements

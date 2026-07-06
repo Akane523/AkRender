@@ -26,7 +26,7 @@ public:
   ModuleBuilder(const ModuleBuilder &) = delete;
   ModuleBuilder &operator=(const ModuleBuilder &) = delete;
   ModuleBuilder(ModuleBuilder &&) = default;
-  ModuleBuilder &operator=(ModuleBuilder &&) = default;
+  ModuleBuilder &operator=(ModuleBuilder &&) = delete;
 
   ~ModuleBuilder();
 
@@ -54,7 +54,8 @@ private:
   bool committed_ = false;
 };
 
-/// Pipeline step: \c reg | module("math").sources({...}).import_as("math_utils")
+/// Pipeline step: \c reg |
+/// module("math").sources({...}).import_as("math_utils")
 class ModuleStep
 {
 public:

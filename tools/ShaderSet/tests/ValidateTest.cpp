@@ -10,9 +10,9 @@ namespace
 {
 
 using AkRender::ShaderSetGenerator::Manifest;
+using AkRender::ShaderSetGenerator::validate;
 using AkRender::ShaderSetGenerator::ValidateOptions;
 using AkRender::ShaderSetGenerator::ValidationError;
-using AkRender::ShaderSetGenerator::validate;
 using namespace AkRender::ShaderSetGenerator;
 namespace Config = AkRender::ShaderSetGenerator::Config;
 using AkRender::ShaderSet::Stage;
@@ -51,11 +51,12 @@ bool has_error(const std::vector<ValidationError> &errors,
 TEST(ValidateTest, AcceptsValidManifest)
 {
   Manifest manifest;
-  open(manifest) | file_at("example", {"binary-resource.txt"},
-                             Config::VirtualPath{"/example"}) | register_all();
+  open(manifest)
+      | file_at("example", {"binary-resource.txt"},
+                Config::VirtualPath{"/example"})
+      | register_all();
 
-  const fs::path dir =
-      fs::path(__FILE__).parent_path() / "GeneratorExample";
+  const fs::path dir = fs::path(__FILE__).parent_path() / "GeneratorExample";
   const auto errors = validate(manifest, opts_for(dir));
   EXPECT_TRUE(errors.empty());
 }
@@ -65,19 +66,21 @@ TEST(ValidateTest, RejectsEmptyManifest)
   const Manifest manifest;
   const auto errors = validate(manifest, opts_for("."));
   ASSERT_EQ(errors.size(), 1u);
-  EXPECT_EQ(errors.front().message, "manifest declares no embeddable resources");
+  EXPECT_EQ(errors.front().message,
+            "manifest declares no embeddable resources");
 }
 
 TEST(ValidateTest, RejectsDuplicateResourceName)
 {
   Manifest manifest;
-  open(manifest) | file_at("dup", {"binary-resource.txt"},
-                             Config::VirtualPath{"/one"}) | register_all();
-  open(manifest) | file_at("dup", {"binary-resource.txt"},
-                             Config::VirtualPath{"/two"}) | register_all();
+  open(manifest)
+      | file_at("dup", {"binary-resource.txt"}, Config::VirtualPath{"/one"})
+      | register_all();
+  open(manifest)
+      | file_at("dup", {"binary-resource.txt"}, Config::VirtualPath{"/two"})
+      | register_all();
 
-  const fs::path dir =
-      fs::path(__FILE__).parent_path() / "GeneratorExample";
+  const fs::path dir = fs::path(__FILE__).parent_path() / "GeneratorExample";
   const auto errors = validate(manifest, opts_for(dir));
   ASSERT_FALSE(errors.empty());
   EXPECT_EQ(errors.front().resource, "dup");
@@ -87,13 +90,14 @@ TEST(ValidateTest, RejectsDuplicateResourceName)
 TEST(ValidateTest, RejectsDuplicateVirtualPath)
 {
   Manifest manifest;
-  open(manifest) | file_at("first", {"binary-resource.txt"},
-                             Config::VirtualPath{"/same"}) | register_all();
-  open(manifest) | file_at("second", {"binary-resource.txt"},
-                             Config::VirtualPath{"/same"}) | register_all();
+  open(manifest)
+      | file_at("first", {"binary-resource.txt"}, Config::VirtualPath{"/same"})
+      | register_all();
+  open(manifest)
+      | file_at("second", {"binary-resource.txt"}, Config::VirtualPath{"/same"})
+      | register_all();
 
-  const fs::path dir =
-      fs::path(__FILE__).parent_path() / "GeneratorExample";
+  const fs::path dir = fs::path(__FILE__).parent_path() / "GeneratorExample";
   const auto errors = validate(manifest, opts_for(dir));
   ASSERT_FALSE(errors.empty());
   EXPECT_EQ(errors.front().message, "duplicate virtual path '/same'");
@@ -102,11 +106,12 @@ TEST(ValidateTest, RejectsDuplicateVirtualPath)
 TEST(ValidateTest, RejectsMissingSourceFile)
 {
   Manifest manifest;
-  open(manifest) | file_at("missing", {"does-not-exist.bin"},
-                             Config::VirtualPath{"/missing"}) | register_all();
+  open(manifest)
+      | file_at("missing", {"does-not-exist.bin"},
+                Config::VirtualPath{"/missing"})
+      | register_all();
 
-  const fs::path dir =
-      fs::path(__FILE__).parent_path() / "GeneratorExample";
+  const fs::path dir = fs::path(__FILE__).parent_path() / "GeneratorExample";
   const auto errors = validate(manifest, opts_for(dir));
   ASSERT_FALSE(errors.empty());
   EXPECT_EQ(errors.front().resource, "missing");
@@ -118,10 +123,10 @@ TEST(ValidateTest, RejectsUnconfiguredBinaryResource)
   Manifest manifest;
   manifest.add_binary_resource("raw");
 
-  const auto errors = validate(
-      manifest, ValidateOptions{.manifest_dir = ".",
-                                .require_embedded_resources = true,
-                                .check_sources = false});
+  const auto errors =
+      validate(manifest, ValidateOptions{.manifest_dir = ".",
+                                         .require_embedded_resources = true,
+                                         .check_sources = false});
   ASSERT_EQ(errors.size(), 2u);
   EXPECT_TRUE(has_error(errors, "raw", "source path is empty"));
   EXPECT_TRUE(has_error(errors, "raw", "virtual path is empty"));
@@ -130,34 +135,36 @@ TEST(ValidateTest, RejectsUnconfiguredBinaryResource)
 TEST(ValidateTest, RejectsVirtualPathPrefixConflict)
 {
   Manifest manifest;
-  open(manifest) | file_at("dir", {"binary-resource.txt"},
-                             Config::VirtualPath{"/assets"}) | register_all();
-  open(manifest) | file_at("file", {"binary-resource.txt"},
-                             Config::VirtualPath{"/assets/data.bin"}) |
-      register_all();
+  open(manifest)
+      | file_at("dir", {"binary-resource.txt"}, Config::VirtualPath{"/assets"})
+      | register_all();
+  open(manifest)
+      | file_at("file", {"binary-resource.txt"},
+                Config::VirtualPath{"/assets/data.bin"})
+      | register_all();
 
-  const fs::path dir =
-      fs::path(__FILE__).parent_path() / "GeneratorExample";
+  const fs::path dir = fs::path(__FILE__).parent_path() / "GeneratorExample";
   const auto errors = validate(manifest, opts_for(dir));
   ASSERT_FALSE(errors.empty());
-  EXPECT_TRUE(errors.front().message.find("virtual path conflict") !=
-              std::string::npos);
+  EXPECT_TRUE(errors.front().message.find("virtual path conflict")
+              != std::string::npos);
 }
 
 TEST(ValidateTest, RejectsSanitizedNameCollision)
 {
   Manifest manifest;
-  open(manifest) | file_at("foo-bar", {"binary-resource.txt"},
-                             Config::VirtualPath{"/one"}) | register_all();
-  open(manifest) | file_at("foo_bar", {"binary-resource.txt"},
-                             Config::VirtualPath{"/two"}) | register_all();
+  open(manifest)
+      | file_at("foo-bar", {"binary-resource.txt"}, Config::VirtualPath{"/one"})
+      | register_all();
+  open(manifest)
+      | file_at("foo_bar", {"binary-resource.txt"}, Config::VirtualPath{"/two"})
+      | register_all();
 
-  const fs::path dir =
-      fs::path(__FILE__).parent_path() / "GeneratorExample";
+  const fs::path dir = fs::path(__FILE__).parent_path() / "GeneratorExample";
   const auto errors = validate(manifest, opts_for(dir));
   ASSERT_FALSE(errors.empty());
-  EXPECT_TRUE(errors.front().message.find("identifier sanitization") !=
-              std::string::npos);
+  EXPECT_TRUE(errors.front().message.find("identifier sanitization")
+              != std::string::npos);
 }
 
 // --- shader entries --------------------------------------------------------
@@ -165,9 +172,9 @@ TEST(ValidateTest, RejectsSanitizedNameCollision)
 TEST(ValidateTest, AcceptsRegisteredSlangPipeline)
 {
   Manifest manifest;
-  open(manifest) | module("math", {"math.slang"}, "math_utils") |
-      ir("vert", {"vert.slang"}, "vsMain", Stage::Vertex, {"math"}) |
-      register_all();
+  open(manifest) | module("math", {"math.slang"}, "math_utils")
+      | ir("vert", {"vert.slang"}, "vsMain", Stage::Vertex, {"math"})
+      | register_all();
 
   const auto errors = validate(manifest, opts_no_source_check("."));
   EXPECT_TRUE(errors.empty());
@@ -177,9 +184,9 @@ TEST(ValidateTest, RejectsSlangShaderWithUnknownDependency)
 {
   Manifest manifest;
   EXPECT_THROW(
-      open(manifest) |
-          ir("vert", {"vert.slang"}, "vsMain", Stage::Vertex, {"missing"}) |
-          register_all(),
+      open(manifest)
+          | ir("vert", {"vert.slang"}, "vsMain", Stage::Vertex, {"missing"})
+          | register_all(),
       std::invalid_argument);
 }
 
@@ -226,8 +233,8 @@ TEST(ValidateTest, RejectsDuplicateShaderArtifactPaths)
 
   const auto errors = validate(manifest, opts_no_source_check("."));
   ASSERT_FALSE(errors.empty());
-  EXPECT_TRUE(errors.front().message.find("duplicate virtual path") !=
-              std::string::npos);
+  EXPECT_TRUE(errors.front().message.find("duplicate virtual path")
+              != std::string::npos);
 }
 
 } // namespace

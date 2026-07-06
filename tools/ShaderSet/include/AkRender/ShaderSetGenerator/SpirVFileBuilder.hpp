@@ -27,7 +27,7 @@ public:
   SpirVFileBuilder(const SpirVFileBuilder &) = delete;
   SpirVFileBuilder &operator=(const SpirVFileBuilder &) = delete;
   SpirVFileBuilder(SpirVFileBuilder &&) = default;
-  SpirVFileBuilder &operator=(SpirVFileBuilder &&) = default;
+  SpirVFileBuilder &operator=(SpirVFileBuilder &&) = delete;
 
   ~SpirVFileBuilder();
 
@@ -78,13 +78,15 @@ private:
   std::optional<Config::VirtualPath> vfs_override_;
 };
 
-[[nodiscard]] SpirVFileBuilder spirv_file(ManifestRegister reg, std::string name);
+[[nodiscard]] SpirVFileBuilder spirv_file(ManifestRegister reg,
+                                          std::string name);
 
 inline SpirVFileStep spirv_file(std::string name)
 {
   return SpirVFileStep{std::move(name)};
 }
 
-[[nodiscard]] ManifestRegister commit_spirv_file_builder(SpirVFileBuilder &&builder);
+[[nodiscard]] ManifestRegister
+commit_spirv_file_builder(SpirVFileBuilder &&builder);
 
 } // namespace AkRender::ShaderSetGenerator

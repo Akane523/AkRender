@@ -76,22 +76,22 @@ ManifestRegister ModuleBuilder::commit(ManifestRegister reg)
 ModuleRef ModuleBuilder::commit_impl()
 {
   if (committed_)
-    throw std::logic_error("ModuleBuilder for '" + name_ + "' already committed");
+    throw std::logic_error("ModuleBuilder for '" + name_
+                           + "' already committed");
 
   if (sources_.empty())
-    throw std::invalid_argument("module '" + name_ + "' requires at least one source");
+    throw std::invalid_argument("module '" + name_
+                                + "' requires at least one source");
 
   const Config::SourcePath primary{sources_.front().generic_string()};
-  const std::string identity =
-      import_name_.empty() ? name_ : import_name_;
+  const std::string identity = import_name_.empty() ? name_ : import_name_;
 
   auto *mod = manifest_.add_slang_module(name_);
   mod->source_paths.assign(sources_.begin(), sources_.end());
   mod->module_name = identity;
-  mod->ir_vfs_path = ir_override_
-                         ? *ir_override_
-                         : detail::module_ir_path(placement_, identity,
-                                                   mod->name, primary);
+  mod->ir_vfs_path = ir_override_ ? *ir_override_
+                                  : detail::module_ir_path(placement_, identity,
+                                                           mod->name, primary);
 
   committed_ = true;
   return ModuleRef{mod};
@@ -108,7 +108,9 @@ ManifestRegister commit_module_builder(ModuleBuilder &&builder)
   return builder.current_register();
 }
 
-ModuleStep::ModuleStep(std::string name) : name_(std::move(name)) {}
+ModuleStep::ModuleStep(std::string name) : name_(std::move(name))
+{
+}
 
 ModuleStep &ModuleStep::source(fs::path path)
 {

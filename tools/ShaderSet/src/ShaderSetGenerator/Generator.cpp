@@ -24,10 +24,10 @@ namespace fs = std::filesystem;
 using AkRender::ShaderSetGenerator::BlobSegment;
 using AkRender::ShaderSetGenerator::BlobSegmentKind;
 using AkRender::ShaderSetGenerator::compile_manifest_shaders;
-using AkRender::ShaderSetGenerator::ShaderCodegenData;
 using AkRender::ShaderSetGenerator::make_cpp_identifier;
 using AkRender::ShaderSetGenerator::make_manifest;
 using AkRender::ShaderSetGenerator::Manifest;
+using AkRender::ShaderSetGenerator::ShaderCodegenData;
 using AkRender::ShaderSetGenerator::validate;
 using AkRender::ShaderSetGenerator::ValidateOptions;
 using AkRender::ShaderSetGenerator::ValidationError;
@@ -70,8 +70,8 @@ resolve_module_records(inja::json entries,
         find_segment(resources, BlobSegmentKind::ModuleIR, name);
     if (!resource)
     {
-      throw std::runtime_error("internal error: missing module IR for '" +
-                               name + "'");
+      throw std::runtime_error("internal error: missing module IR for '" + name
+                               + "'");
     }
     entry["offset"] = resource->blob_offset;
     entry["size"] = resource->data.size();
@@ -90,8 +90,8 @@ resolve_slang_shader_records(inja::json entries,
         find_segment(resources, BlobSegmentKind::ShaderIR, name);
     if (!ir)
     {
-      throw std::runtime_error("internal error: missing shader IR for '" + name +
-                               "'");
+      throw std::runtime_error("internal error: missing shader IR for '" + name
+                               + "'");
     }
     entry["offset"] = ir->blob_offset;
     entry["size"] = ir->data.size();
@@ -102,8 +102,8 @@ resolve_slang_shader_records(inja::json entries,
           find_segment(resources, BlobSegmentKind::ShaderSpirV, name);
       if (!spirv)
       {
-        throw std::runtime_error("internal error: missing shader SPIR-V for '" +
-                                 name + "'");
+        throw std::runtime_error("internal error: missing shader SPIR-V for '"
+                                 + name + "'");
       }
       entry["spirv_offset"] = spirv->blob_offset;
       entry["spirv_size"] = spirv->data.size();
@@ -119,8 +119,8 @@ resolve_spirv_shader_records(inja::json entries,
   inja::json resolved = inja::json::array();
   for (inja::json entry : entries)
   {
-    if (entry.contains("from_slang_shader") &&
-        entry.at("from_slang_shader").get<bool>())
+    if (entry.contains("from_slang_shader")
+        && entry.at("from_slang_shader").get<bool>())
       continue;
 
     const std::string name = entry.at("name");
@@ -128,8 +128,8 @@ resolve_spirv_shader_records(inja::json entries,
         find_segment(resources, BlobSegmentKind::ShaderSpirV, name);
     if (!spirv)
     {
-      throw std::runtime_error("internal error: missing SPIR-V for '" + name +
-                               "'");
+      throw std::runtime_error("internal error: missing SPIR-V for '" + name
+                               + "'");
     }
     entry["offset"] = spirv->blob_offset;
     entry["size"] = spirv->data.size();
@@ -259,13 +259,12 @@ struct ShaderSetGenerator
   {
     using namespace std::string_literals;
 
-    const auto validation_errors = validate(
-        m_manifest,
-        ValidateOptions{
-            .manifest_dir = m_source_dir,
-            .require_embedded_resources = true,
-            .check_sources = true,
-        });
+    const auto validation_errors =
+        validate(m_manifest, ValidateOptions{
+                                 .manifest_dir = m_source_dir,
+                                 .require_embedded_resources = true,
+                                 .check_sources = true,
+                             });
     if (!validation_errors.empty())
       throw ValidationFailure{validation_errors};
 
@@ -298,10 +297,8 @@ struct ShaderSetGenerator
     const auto blob = concatenate_blob(resources);
 
     m_slang_modules = resolve_module_records(m_slang_modules, resources);
-    m_slang_shaders =
-        resolve_slang_shader_records(m_slang_shaders, resources);
-    m_spirv_shaders =
-        resolve_spirv_shader_records(m_spirv_shaders, resources);
+    m_slang_shaders = resolve_slang_shader_records(m_slang_shaders, resources);
+    m_spirv_shaders = resolve_spirv_shader_records(m_spirv_shaders, resources);
 
     // ── build VFS nodes (flat array) ──────────────────────────────
     log_verbose("building VFS node tree …");
@@ -369,7 +366,8 @@ struct ShaderSetGenerator
   inja::json m_spirv_shaders = inja::json::array();
 
   using depfile_t = std::map<fs::path, std::vector<fs::path>>;
-  depfile_t m_depfile; ///< maps output files to their source dependencies (for build system integration)
+  depfile_t m_depfile; ///< maps output files to their source dependencies (for
+                       ///< build system integration)
 
 private:
   // ── pipeline stages ─────────────────────────────────────────────────
@@ -382,8 +380,8 @@ private:
     {
       if (entry->vfs_path.empty())
       {
-        throw std::runtime_error("binary resource \"" + entry->name +
-                                 "\" has no virtual path");
+        throw std::runtime_error("binary resource \"" + entry->name
+                                 + "\" has no virtual path");
       }
 
       const std::string vpath = entry->vfs_path.value;
@@ -395,9 +393,8 @@ private:
       std::ifstream ifs(abs_source, std::ios::binary | std::ios::ate);
       if (!ifs)
       {
-        throw std::runtime_error("cannot open binary resource \"" +
-                                 entry->name + "\" at " +
-                                 abs_source.string());
+        throw std::runtime_error("cannot open binary resource \"" + entry->name
+                                 + "\" at " + abs_source.string());
       }
 
       const auto sz = ifs.tellg();
@@ -708,9 +705,9 @@ int main(int argc, char **argv)
   ShaderSetGenerator generator{};
   generator.m_source_dir = std::move(source_dir);
   generator.m_binary_dir = std::move(binary_dir);
-  generator.m_template_dir =
-      app.count("-t") == 0 ? generator.m_source_dir / "template"
-                           : std::move(template_dir);
+  generator.m_template_dir = app.count("-t") == 0
+                                 ? generator.m_source_dir / "template"
+                                 : std::move(template_dir);
   generator.m_shader_set_name = std::move(shader_set_name);
   generator.m_verbose_output = verbose;
 

@@ -28,7 +28,7 @@ public:
   SlangBuilder(const SlangBuilder &) = delete;
   SlangBuilder &operator=(const SlangBuilder &) = delete;
   SlangBuilder(SlangBuilder &&) = default;
-  SlangBuilder &operator=(SlangBuilder &&) = default;
+  SlangBuilder &operator=(SlangBuilder &&) = delete;
 
   ~SlangBuilder();
 
@@ -72,7 +72,8 @@ private:
   bool committed_ = false;
 };
 
-/// Pipeline step: \c reg | slang("vert").source(...).stage(...).ir().uses("math")
+/// Pipeline step: \c reg |
+/// slang("vert").source(...).stage(...).ir().uses("math")
 class SlangStep
 {
 public:

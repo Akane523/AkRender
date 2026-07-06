@@ -160,8 +160,7 @@ public:
   [[nodiscard]] const Config::VirtualPath &vfs_prefix() const;
 
   [[nodiscard]] ScopedVfsPrefix push_vfs_prefix(Config::VirtualPath prefix);
-  [[nodiscard]] ScopedSourceRoot
-  push_source_root(std::filesystem::path root);
+  [[nodiscard]] ScopedSourceRoot push_source_root(std::filesystem::path root);
 
   /// \brief Adds a SPIR-V shader.
   /// \returns Pointer to the newly added entry (owned by the Manifest).

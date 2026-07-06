@@ -10,15 +10,14 @@ namespace fs = std::filesystem;
 namespace
 {
 
+using AkRender::ShaderSetGenerator::embed_parallel;
 using AkRender::ShaderSetGenerator::Manifest;
 using AkRender::ShaderSetGenerator::TreeNamePolicy;
-using AkRender::ShaderSetGenerator::embed_parallel;
 using namespace AkRender::ShaderSetGenerator;
 namespace Config = AkRender::ShaderSetGenerator::Config;
 using AkRender::ShaderSet::Stage;
 
-const fs::path kTreeDir =
-    fs::path(__FILE__).parent_path() / "TreeExample/tree";
+const fs::path kTreeDir = fs::path(__FILE__).parent_path() / "TreeExample/tree";
 const fs::path kStemDupDir =
     fs::path(__FILE__).parent_path() / "TreeExample/stem_dup";
 
@@ -28,10 +27,11 @@ TEST(ManifestRegisterTest, ParallelMappingStoresComposedPaths)
 {
   Manifest manifest;
 
-  embed_parallel(manifest, {"/shaders"}, "shaders", {
-      {"vert", {"vert.spv"}},
-      {"frag", {"frag.spv"}},
-  });
+  embed_parallel(manifest, {"/shaders"}, "shaders",
+                 {
+                     {"vert", {"vert.spv"}},
+                     {"frag", {"frag.spv"}},
+                 });
 
   ASSERT_EQ(manifest.num_binary_resources(), 2u);
 
@@ -49,8 +49,8 @@ TEST(ManifestRegisterTest, ByNameMappingUsesResourceName)
 {
   Manifest manifest;
 
-  open(manifest) | into({"/"}) | from(".") | map_by_name() |
-      file("config", {"data/config.bin"}) | register_all();
+  open(manifest) | into({"/"}) | from(".") | map_by_name()
+      | file("config", {"data/config.bin"}) | register_all();
 
   const auto *resource = manifest.find_binary_resource("config");
   ASSERT_NE(resource, nullptr);
@@ -61,9 +61,9 @@ TEST(ManifestRegisterTest, FileAtUsesExactVirtualPath)
 {
   Manifest manifest;
 
-  open(manifest) | from(".") | map_parallel() |
-      file_at("legacy", {"old/legacy.bin"}, {"/compat/legacy.bin"}) |
-      register_all();
+  open(manifest) | from(".") | map_parallel()
+      | file_at("legacy", {"old/legacy.bin"}, {"/compat/legacy.bin"})
+      | register_all();
 
   const auto *resource = manifest.find_binary_resource("legacy");
   ASSERT_NE(resource, nullptr);
@@ -74,9 +74,9 @@ TEST(ManifestRegisterTest, FileAtNormalizesVirtualPath)
 {
   Manifest manifest;
 
-  open(manifest) | file_at("data", {"file.bin"},
-                             Config::VirtualPath{"/assets//data.bin"}) |
-      register_all();
+  open(manifest)
+      | file_at("data", {"file.bin"}, Config::VirtualPath{"/assets//data.bin"})
+      | register_all();
 
   const auto *resource = manifest.find_binary_resource("data");
   ASSERT_NE(resource, nullptr);
@@ -89,9 +89,9 @@ TEST(ManifestRegisterTest, FileAtRejectsInvalidVirtualPath)
   Manifest manifest;
 
   EXPECT_THROW(
-      open(manifest) | file_at("data", {"file.bin"},
-                               Config::VirtualPath{"/assets/"}) |
-          register_all(),
+      open(manifest)
+          | file_at("data", {"file.bin"}, Config::VirtualPath{"/assets/"})
+          | register_all(),
       std::invalid_argument);
 }
 
@@ -102,8 +102,8 @@ TEST(ManifestRegisterTest, SourceRootScopeComposesPhysicalPaths)
   {
     auto scope = manifest.push_source_root("assets");
     (void)scope;
-    open(manifest) | from("textures") | into({"/textures"}) | map_parallel() |
-        file("albedo", {"albedo.png"}) | register_all();
+    open(manifest) | from("textures") | into({"/textures"}) | map_parallel()
+        | file("albedo", {"albedo.png"}) | register_all();
   }
 
   const auto *resource = manifest.find_binary_resource("albedo");
@@ -116,8 +116,8 @@ TEST(ManifestRegisterTest, TreeUsesRelativePathNames)
 {
   Manifest manifest;
 
-  open(manifest) | tree(kTreeDir, {"/tree"}, TreeNamePolicy::RelativePath) |
-      register_all();
+  open(manifest) | tree(kTreeDir, {"/tree"}, TreeNamePolicy::RelativePath)
+      | register_all();
 
   ASSERT_EQ(manifest.num_binary_resources(), 2u);
 
@@ -136,22 +136,22 @@ TEST(ManifestRegisterTest, MissingMappingIsRejected)
 {
   Manifest manifest;
 
-  EXPECT_THROW(
-      open(manifest) | from(".") | into({"/data"}) |
-          file("config", {"config.bin"}) | register_all(),
-      std::invalid_argument);
+  EXPECT_THROW(open(manifest) | from(".") | into({"/data"})
+                   | file("config", {"config.bin"}) | register_all(),
+               std::invalid_argument);
 }
 
 TEST(ManifestRegisterTest, BasenameMappingUsesSourceFilename)
 {
   Manifest manifest;
 
-  open(manifest) | from("generated") | into({"/spv"}) | map_basename() |
-      file("frag", {"pipeline/frag.spv"}) | register_all();
+  open(manifest) | from("generated") | into({"/spv"}) | map_basename()
+      | file("frag", {"pipeline/frag.spv"}) | register_all();
 
   const auto *resource = manifest.find_binary_resource("frag");
   ASSERT_NE(resource, nullptr);
-  EXPECT_EQ(resource->source_path.path, fs::path("generated/pipeline/frag.spv"));
+  EXPECT_EQ(resource->source_path.path,
+            fs::path("generated/pipeline/frag.spv"));
   EXPECT_EQ(resource->vfs_path.value, "/spv/frag.spv");
 }
 
@@ -160,8 +160,8 @@ TEST(ManifestRegisterTest, InheritsManifestVfsPrefix)
   Manifest manifest;
   manifest.set_vfs_prefix({"/pack"});
 
-  open(manifest) | from("data") | map_by_name() | file("cfg", {"cfg.bin"}) |
-      register_all();
+  open(manifest) | from("data") | map_by_name() | file("cfg", {"cfg.bin"})
+      | register_all();
 
   const auto *resource = manifest.find_binary_resource("cfg");
   ASSERT_NE(resource, nullptr);
@@ -172,8 +172,8 @@ TEST(ManifestRegisterTest, TreeStemPolicyUsesFilenameStem)
 {
   Manifest manifest;
 
-  open(manifest) | tree(kTreeDir, {"/tree"}, TreeNamePolicy::Stem) |
-      register_all();
+  open(manifest) | tree(kTreeDir, {"/tree"}, TreeNamePolicy::Stem)
+      | register_all();
 
   const auto *root = manifest.find_binary_resource("root");
   ASSERT_NE(root, nullptr);
@@ -188,21 +188,22 @@ TEST(ManifestRegisterTest, TreeStemPolicyRejectsDuplicateNames)
 {
   Manifest manifest;
 
-  EXPECT_THROW(
-      open(manifest) | tree(kStemDupDir, {"/dup"}, TreeNamePolicy::Stem) |
-          register_all(),
-      std::invalid_argument);
+  EXPECT_THROW(open(manifest)
+                   | tree(kStemDupDir, {"/dup"}, TreeNamePolicy::Stem)
+                   | register_all(),
+               std::invalid_argument);
 }
 
 TEST(ManifestRegisterTest, FilesRegistersMultipleEntries)
 {
   Manifest manifest;
 
-  open(manifest) | into({"/data"}) | from(".") | map_parallel() |
-      files({
+  open(manifest) | into({"/data"}) | from(".") | map_parallel()
+      | files({
           {"a", {"a.bin"}},
           {"b", {"b.bin"}},
-      }) | register_all();
+      })
+      | register_all();
 
   EXPECT_NE(manifest.find_binary_resource("a"), nullptr);
   EXPECT_NE(manifest.find_binary_resource("b"), nullptr);
@@ -216,23 +217,22 @@ TEST(ManifestRegisterTest, ModuleRegistersDefaultIrPath)
 {
   Manifest manifest;
 
-  open(manifest) | module("math", {"math.slang"}, "math_utils") |
-      register_all();
+  open(manifest) | module("math", {"math.slang"}, "math_utils")
+      | register_all();
 
   const auto *mod = manifest.find_slang_module("math");
   ASSERT_NE(mod, nullptr);
   EXPECT_EQ(mod->module_name, "math_utils");
-  EXPECT_EQ(mod->ir_vfs_path.value,
-            "/shaders/slang/math_utils.slang-module");
+  EXPECT_EQ(mod->ir_vfs_path.value, "/shaders/slang/math_utils.slang-module");
 }
 
 TEST(ManifestRegisterTest, IrShaderRegistersDefaultIrPath)
 {
   Manifest manifest;
 
-  open(manifest) | module("math", {"math.slang"}) |
-      ir("vert", {"vert.slang"}, "vsMain", Stage::Vertex, {"math"}) |
-      register_all();
+  open(manifest) | module("math", {"math.slang"})
+      | ir("vert", {"vert.slang"}, "vsMain", Stage::Vertex, {"math"})
+      | register_all();
 
   const auto *shader = manifest.find_slang_shader("vert");
   ASSERT_NE(shader, nullptr);
@@ -247,9 +247,9 @@ TEST(ManifestRegisterTest, SpirvShaderRegistersDefaultSpvPath)
 {
   Manifest manifest;
 
-  open(manifest) | module("math", {"math.slang"}) |
-      spirv("frag", {"frag.slang"}, "fsMain", Stage::Fragment, {"math"}) |
-      register_all();
+  open(manifest) | module("math", {"math.slang"})
+      | spirv("frag", {"frag.slang"}, "fsMain", Stage::Fragment, {"math"})
+      | register_all();
 
   const auto *shader = manifest.find_slang_shader("frag");
   ASSERT_NE(shader, nullptr);
@@ -262,8 +262,8 @@ TEST(ManifestRegisterTest, BothModeRegistersIrAndSpvPaths)
 {
   Manifest manifest;
 
-  open(manifest) | both("combo", {"combo.slang"}, "main", Stage::Compute, {}) |
-      register_all();
+  open(manifest) | both("combo", {"combo.slang"}, "main", Stage::Compute, {})
+      | register_all();
 
   const auto *shader = manifest.find_slang_shader("combo");
   ASSERT_NE(shader, nullptr);
@@ -276,10 +276,10 @@ TEST(ManifestRegisterTest, ParallelMappingAppliesToShaderArtifacts)
 {
   Manifest manifest;
 
-  open(manifest) | into({"/pack"}) | from(".") | map_parallel() |
-      module("math", {"shaders/math.slang"}, "math_utils") |
-      ir("vert", {"shaders/vert.slang"}, "vsMain", Stage::Vertex, {"math"}) |
-      register_all();
+  open(manifest) | into({"/pack"}) | from(".") | map_parallel()
+      | module("math", {"shaders/math.slang"}, "math_utils")
+      | ir("vert", {"shaders/vert.slang"}, "vsMain", Stage::Vertex, {"math"})
+      | register_all();
 
   const auto *mod = manifest.find_slang_module("math");
   ASSERT_NE(mod, nullptr);
@@ -294,9 +294,9 @@ TEST(ManifestRegisterTest, SpirvFileRegistersDiskShader)
 {
   Manifest manifest;
 
-  open(manifest) | into({"/spv"}) | from(".") | map_parallel() |
-      spirv_file("prebuilt", {"pipeline/frag.spv"}, "main", Stage::Fragment) |
-      register_all();
+  open(manifest) | into({"/spv"}) | from(".") | map_parallel()
+      | spirv_file("prebuilt", {"pipeline/frag.spv"}, "main", Stage::Fragment)
+      | register_all();
 
   const auto *shader = manifest.find_spirv_shader("prebuilt");
   ASSERT_NE(shader, nullptr);

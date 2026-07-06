@@ -14,7 +14,8 @@
 namespace AkRender::ShaderSetGenerator
 {
 
-/// Handle to a registered \c Config::SlangModule.  Only constructible via commit.
+/// Handle to a registered \c Config::SlangModule.  Only constructible via
+/// commit.
 class ModuleRef
 {
 public:

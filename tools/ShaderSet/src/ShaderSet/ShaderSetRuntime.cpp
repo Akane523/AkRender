@@ -40,10 +40,11 @@ ShaderSetRuntime::spirv(const SlangShaderDesc &shader) const noexcept
   return shaderSpirvBytes(shader, m_view);
 }
 
-bool ShaderSetRuntime::isModuleLoaded(std::string_view manifest_name) const noexcept
+bool ShaderSetRuntime::isModuleLoaded(
+    std::string_view manifest_name) const noexcept
 {
-  return std::ranges::find(m_loadedModules, manifest_name) !=
-         m_loadedModules.end();
+  return std::ranges::find(m_loadedModules, manifest_name)
+         != m_loadedModules.end();
 }
 
 void ShaderSetRuntime::resetSession(const CompileOptions &options)
@@ -71,12 +72,12 @@ bool ShaderSetRuntime::ensureModuleLoaded(const SlangModuleDesc &module)
 
 CompileResult ShaderSetRuntime::compile(const SlangShaderDesc &shader)
 {
-  if (!m_sessionReady ||
-      m_sessionOptions.target_format != shader.options.target_format ||
-      m_sessionOptions.optimization != shader.options.optimization ||
-      m_sessionOptions.float_mode != shader.options.float_mode ||
-      m_sessionOptions.matrix_layout != shader.options.matrix_layout ||
-      m_sessionOptions.debug_info != shader.options.debug_info)
+  if (!m_sessionReady
+      || m_sessionOptions.target_format != shader.options.target_format
+      || m_sessionOptions.optimization != shader.options.optimization
+      || m_sessionOptions.float_mode != shader.options.float_mode
+      || m_sessionOptions.matrix_layout != shader.options.matrix_layout
+      || m_sessionOptions.debug_info != shader.options.debug_info)
   {
     resetSession(shader.options);
   }

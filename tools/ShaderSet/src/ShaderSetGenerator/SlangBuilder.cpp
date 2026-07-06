@@ -120,16 +120,19 @@ ManifestRegister SlangBuilder::commit(ManifestRegister reg)
 SlangShaderRef SlangBuilder::commit_impl()
 {
   if (committed_)
-    throw std::logic_error("SlangBuilder for '" + name_ + "' already committed");
+    throw std::logic_error("SlangBuilder for '" + name_
+                           + "' already committed");
 
   if (source_path_.empty())
     throw std::invalid_argument("slang shader '" + name_ + "' requires source");
 
   if (!mode_)
-    throw std::invalid_argument("slang shader '" + name_ + "' requires ir(), spirv(), or both()");
+    throw std::invalid_argument("slang shader '" + name_
+                                + "' requires ir(), spirv(), or both()");
 
   if (!stage_set_)
-    throw std::invalid_argument("slang shader '" + name_ + "' requires stage()");
+    throw std::invalid_argument("slang shader '" + name_
+                                + "' requires stage()");
 
   for (const std::string &dep : dependencies_)
     detail::ensure_module_dependency(manifest_, dep);
@@ -147,24 +150,28 @@ SlangShaderRef SlangBuilder::commit_impl()
 
   switch (*mode_)
   {
-  case Config::SlangOutputMode::SlangIR:
-    shader->ir_vfs_path = ir_override_ ? *ir_override_
-                                       : detail::shader_ir_path(
-                                             placement_, shader->name, source);
-    break;
-  case Config::SlangOutputMode::SpirV:
-    shader->spv_vfs_path = spv_override_ ? *spv_override_
-                                         : detail::shader_spv_path(
-                                               placement_, shader->name, source);
-    break;
-  case Config::SlangOutputMode::Both:
-    shader->ir_vfs_path = ir_override_ ? *ir_override_
-                                        : detail::shader_ir_path(
-                                              placement_, shader->name, source);
-    shader->spv_vfs_path = spv_override_ ? *spv_override_
-                                         : detail::shader_spv_path(
-                                               placement_, shader->name, source);
-    break;
+    case Config::SlangOutputMode::SlangIR:
+      shader->ir_vfs_path =
+          ir_override_
+              ? *ir_override_
+              : detail::shader_ir_path(placement_, shader->name, source);
+      break;
+    case Config::SlangOutputMode::SpirV:
+      shader->spv_vfs_path =
+          spv_override_
+              ? *spv_override_
+              : detail::shader_spv_path(placement_, shader->name, source);
+      break;
+    case Config::SlangOutputMode::Both:
+      shader->ir_vfs_path =
+          ir_override_
+              ? *ir_override_
+              : detail::shader_ir_path(placement_, shader->name, source);
+      shader->spv_vfs_path =
+          spv_override_
+              ? *spv_override_
+              : detail::shader_spv_path(placement_, shader->name, source);
+      break;
   }
 
   committed_ = true;
@@ -182,7 +189,9 @@ ManifestRegister commit_slang_builder(SlangBuilder &&builder)
   return builder.current_register();
 }
 
-SlangStep::SlangStep(std::string name) : name_(std::move(name)) {}
+SlangStep::SlangStep(std::string name) : name_(std::move(name))
+{
+}
 
 SlangStep &SlangStep::source(fs::path path)
 {
@@ -266,15 +275,15 @@ ManifestRegister SlangStep::apply(ManifestRegister reg) const
   {
     switch (*mode_)
     {
-    case Config::SlangOutputMode::SlangIR:
-      builder.ir();
-      break;
-    case Config::SlangOutputMode::SpirV:
-      builder.spirv();
-      break;
-    case Config::SlangOutputMode::Both:
-      builder.both();
-      break;
+      case Config::SlangOutputMode::SlangIR:
+        builder.ir();
+        break;
+      case Config::SlangOutputMode::SpirV:
+        builder.spirv();
+        break;
+      case Config::SlangOutputMode::Both:
+        builder.both();
+        break;
     }
   }
   if (ir_override_)

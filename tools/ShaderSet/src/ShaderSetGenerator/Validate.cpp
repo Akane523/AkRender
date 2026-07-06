@@ -76,8 +76,8 @@ bool register_vfs_path(std::vector<ValidationError> &errors,
   if (vfs_path.value != normalized->value)
   {
     add_error(errors, resource_name,
-              "virtual path is not normalized (expected '" +
-                  normalized->value + "')");
+              "virtual path is not normalized (expected '" + normalized->value
+                  + "')");
   }
 
   if (!vfs_paths.insert(normalized->value).second)
@@ -108,8 +108,8 @@ void register_name(std::vector<ValidationError> &errors,
   if (auto it = idents.find(ident); it != idents.end())
   {
     add_error(errors, name,
-              "resource name collides after C++ identifier sanitization with '" +
-                  it->second + "' (both become '" + ident + "')");
+              "resource name collides after C++ identifier sanitization with '"
+                  + it->second + "' (both become '" + ident + "')");
   }
   else
   {
@@ -143,8 +143,8 @@ void check_source_file(std::vector<ValidationError> &errors,
   else if (!fs::is_regular_file(abs_source, ec))
   {
     add_error(errors, resource_name,
-              "source path is not a regular file: " +
-                  abs_source.generic_string());
+              "source path is not a regular file: "
+                  + abs_source.generic_string());
   }
 }
 
@@ -182,8 +182,9 @@ std::vector<ValidationError> validate(const Manifest &manifest,
   const auto slang_shaders = manifest.slang_shaders();
   const auto spirv_shaders = manifest.spirv_shaders();
 
-  const bool has_embeddable = !resources.empty() || !modules.empty() ||
-                              !slang_shaders.empty() || !spirv_shaders.empty();
+  const bool has_embeddable = !resources.empty() || !modules.empty()
+                              || !slang_shaders.empty()
+                              || !spirv_shaders.empty();
   if (options.require_embedded_resources && !has_embeddable)
   {
     add_error(errors, {}, "manifest declares no embeddable resources");
@@ -235,12 +236,10 @@ std::vector<ValidationError> validate(const Manifest &manifest,
     register_name(errors, entry->name, names, idents);
     check_source_file(errors, entry->name, entry->source_path, options);
 
-    const bool want_ir =
-        entry->mode == Config::SlangOutputMode::SlangIR ||
-        entry->mode == Config::SlangOutputMode::Both;
-    const bool want_spv =
-        entry->mode == Config::SlangOutputMode::SpirV ||
-        entry->mode == Config::SlangOutputMode::Both;
+    const bool want_ir = entry->mode == Config::SlangOutputMode::SlangIR
+                         || entry->mode == Config::SlangOutputMode::Both;
+    const bool want_spv = entry->mode == Config::SlangOutputMode::SpirV
+                          || entry->mode == Config::SlangOutputMode::Both;
 
     if (want_ir)
     {
@@ -271,8 +270,8 @@ std::vector<ValidationError> validate(const Manifest &manifest,
                                   normalized_vfs_paths[j]))
       {
         add_error(errors, {},
-                  "virtual path conflict between '" + normalized_vfs_paths[i] +
-                      "' and '" + normalized_vfs_paths[j] + "'");
+                  "virtual path conflict between '" + normalized_vfs_paths[i]
+                      + "' and '" + normalized_vfs_paths[j] + "'");
       }
     }
   }

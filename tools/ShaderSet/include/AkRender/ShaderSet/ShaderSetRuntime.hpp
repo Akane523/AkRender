@@ -16,9 +16,18 @@ class ShaderSetRuntime
 public:
   explicit ShaderSetRuntime(const VirtualFileSystemView &view) noexcept;
 
-  const VirtualFileSystemView &view() const noexcept { return m_view; }
-  SlangJITCompiler &compiler() noexcept { return m_compiler; }
-  const SlangJITCompiler &compiler() const noexcept { return m_compiler; }
+  const VirtualFileSystemView &view() const noexcept
+  {
+    return m_view;
+  }
+  SlangJITCompiler &compiler() noexcept
+  {
+    return m_compiler;
+  }
+  const SlangJITCompiler &compiler() const noexcept
+  {
+    return m_compiler;
+  }
 
   [[nodiscard]] std::span<const std::byte>
   binaryBytes(const BinaryResourceDesc &resource) const noexcept;

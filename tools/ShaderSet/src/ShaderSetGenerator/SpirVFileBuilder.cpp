@@ -71,7 +71,8 @@ ManifestRegister SpirVFileBuilder::commit(ManifestRegister reg)
 SpirVShaderRef SpirVFileBuilder::commit_impl()
 {
   if (committed_)
-    throw std::logic_error("SpirVFileBuilder for '" + name_ + "' already committed");
+    throw std::logic_error("SpirVFileBuilder for '" + name_
+                           + "' already committed");
 
   if (source_path_.empty())
     throw std::invalid_argument("spirv_file '" + name_ + "' requires source");
@@ -114,7 +115,9 @@ ManifestRegister commit_spirv_file_builder(SpirVFileBuilder &&builder)
   return builder.current_register();
 }
 
-SpirVFileStep::SpirVFileStep(std::string name) : name_(std::move(name)) {}
+SpirVFileStep::SpirVFileStep(std::string name) : name_(std::move(name))
+{
+}
 
 SpirVFileStep &SpirVFileStep::source(fs::path path)
 {

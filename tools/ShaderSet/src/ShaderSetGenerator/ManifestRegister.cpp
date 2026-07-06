@@ -52,13 +52,15 @@ ManifestRegister open(Manifest &manifest)
 
 ManifestRegister from(ManifestRegister reg, fs::path source_root)
 {
-  reg.placement = with_source_root(std::move(reg.placement), std::move(source_root));
+  reg.placement =
+      with_source_root(std::move(reg.placement), std::move(source_root));
   return reg;
 }
 
 ManifestRegister into(ManifestRegister reg, Config::VirtualPath vfs_prefix)
 {
-  reg.placement = with_vfs_prefix(std::move(reg.placement), std::move(vfs_prefix));
+  reg.placement =
+      with_vfs_prefix(std::move(reg.placement), std::move(vfs_prefix));
   return reg;
 }
 
@@ -76,9 +78,9 @@ ManifestRegister file(ManifestRegister reg, std::string name,
   return reg;
 }
 
-ManifestRegister files(
-    ManifestRegister reg,
-    std::initializer_list<std::pair<std::string, Config::SourcePath>> entries)
+ManifestRegister
+files(ManifestRegister reg,
+      std::initializer_list<std::pair<std::string, Config::SourcePath>> entries)
 {
   for (const auto &[name, source] : entries)
     (void)file(reg, name, source);
@@ -96,7 +98,8 @@ ManifestRegister file_at(ManifestRegister reg, std::string name,
 }
 
 ManifestRegister tree(ManifestRegister reg, fs::path source_dir,
-                      Config::VirtualPath vfs_prefix, TreeNamePolicy name_policy)
+                      Config::VirtualPath vfs_prefix,
+                      TreeNamePolicy name_policy)
 {
   if (source_dir.empty())
     throw std::invalid_argument("tree source_dir is empty");
@@ -110,12 +113,13 @@ ManifestRegister tree(ManifestRegister reg, fs::path source_dir,
   std::error_code ec;
   if (!fs::exists(tree_root, ec) || !fs::is_directory(tree_root, ec))
   {
-    throw std::invalid_argument("tree source_dir is not a directory: " +
-                                tree_root.generic_string());
+    throw std::invalid_argument("tree source_dir is not a directory: "
+                                + tree_root.generic_string());
   }
 
   reg.placement = map_parallel(std::move(reg.placement));
-  reg.placement = with_vfs_prefix(std::move(reg.placement), std::move(vfs_prefix));
+  reg.placement =
+      with_vfs_prefix(std::move(reg.placement), std::move(vfs_prefix));
   reg.placement = with_source_root(std::move(reg.placement), source_dir);
 
   std::unordered_set<std::string> seen_names;
@@ -124,9 +128,9 @@ ManifestRegister tree(ManifestRegister reg, fs::path source_dir,
   {
     if (ec)
     {
-      throw std::invalid_argument("tree failed to iterate '" +
-                                  tree_root.generic_string() + "': " +
-                                  ec.message());
+      throw std::invalid_argument("tree failed to iterate '"
+                                  + tree_root.generic_string()
+                                  + "': " + ec.message());
     }
 
     if (!entry.is_regular_file(ec))
@@ -139,13 +143,13 @@ ManifestRegister tree(ManifestRegister reg, fs::path source_dir,
     std::string name;
     switch (name_policy)
     {
-    case TreeNamePolicy::RelativePath:
-      name = rel.generic_string();
-      std::replace(name.begin(), name.end(), '/', '_');
-      break;
-    case TreeNamePolicy::Stem:
-      name = rel.stem().generic_string();
-      break;
+      case TreeNamePolicy::RelativePath:
+        name = rel.generic_string();
+        std::replace(name.begin(), name.end(), '/', '_');
+        break;
+      case TreeNamePolicy::Stem:
+        name = rel.stem().generic_string();
+        break;
     }
 
     if (name.empty())
@@ -153,7 +157,8 @@ ManifestRegister tree(ManifestRegister reg, fs::path source_dir,
 
     if (!seen_names.insert(name).second)
     {
-      throw std::invalid_argument("tree duplicate resource name '" + name + "'");
+      throw std::invalid_argument("tree duplicate resource name '" + name
+                                  + "'");
     }
 
     (void)file(reg, name, Config::SourcePath{rel});
@@ -223,9 +228,9 @@ void embed_parallel(
     Manifest &manifest, Config::VirtualPath vfs_prefix, fs::path source_root,
     std::initializer_list<std::pair<std::string, Config::SourcePath>> entries)
 {
-  open(manifest) | register_all(into(std::move(vfs_prefix)),
-                                from(std::move(source_root)), map_parallel(),
-                                files(entries));
+  open(manifest)
+      | register_all(into(std::move(vfs_prefix)), from(std::move(source_root)),
+                     map_parallel(), files(entries));
 }
 
 } // namespace AkRender::ShaderSetGenerator

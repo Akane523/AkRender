@@ -23,12 +23,12 @@ namespace
 {
 
 using AkRender::ShaderSet::CompileOptions;
+using AkRender::ShaderSet::FloatMode;
+using AkRender::ShaderSet::MatrixLayout;
+using AkRender::ShaderSet::OptimizationLevel;
 using AkRender::ShaderSet::SlangCompileSession;
 using AkRender::ShaderSet::Stage;
 using AkRender::ShaderSet::TargetFormat;
-using AkRender::ShaderSet::OptimizationLevel;
-using AkRender::ShaderSet::FloatMode;
-using AkRender::ShaderSet::MatrixLayout;
 
 std::string stageToTemplate(Stage stage)
 {
@@ -133,8 +133,8 @@ void addUniquePath(std::vector<fs::path> &paths, const fs::path &path)
     paths.push_back(stored);
 }
 
-std::vector<fs::path>
-collectSearchPaths(const Manifest &manifest, const fs::path &source_dir)
+std::vector<fs::path> collectSearchPaths(const Manifest &manifest,
+                                         const fs::path &source_dir)
 {
   std::vector<fs::path> paths;
 
@@ -165,8 +165,7 @@ std::string vfsPathValue(const Config::VirtualPath &path)
   return path.value;
 }
 
-[[nodiscard]] std::vector<std::byte>
-readBinaryFile(const fs::path &path)
+[[nodiscard]] std::vector<std::byte> readBinaryFile(const fs::path &path)
 {
   std::ifstream ifs(path, std::ios::binary | std::ios::ate);
   if (!ifs)
@@ -241,8 +240,8 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
   {
     if (mod->source_paths.empty())
     {
-      throw std::runtime_error("slang module \"" + mod->name +
-                               "\" has no source paths");
+      throw std::runtime_error("slang module \"" + mod->name
+                               + "\" has no source paths");
     }
 
     const fs::path primary_source =
@@ -259,8 +258,8 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
       if (!session.loadModuleFromIR(compiled.import_name, compiled.ir.data(),
                                     compiled.ir.size()))
       {
-        throw std::runtime_error("failed to load compiled module '" + name +
-                                 "' while compiling '" + mod->name + "'");
+        throw std::runtime_error("failed to load compiled module '" + name
+                                 + "' while compiling '" + mod->name + "'");
       }
     }
 
@@ -279,8 +278,7 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
     }
 
     compiled_modules.emplace(
-        mod->name,
-        CompiledModuleIR{.import_name = identity, .ir = result.ir});
+        mod->name, CompiledModuleIR{.import_name = identity, .ir = result.ir});
 
     const std::string vfs_path = vfsPathValue(mod->ir_vfs_path);
     appendSegment(out, makeSegment(BlobSegmentKind::ModuleIR, mod->name,
@@ -293,9 +291,9 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
         {"vfs_path", vfs_path},
     });
 
-    logVerbose(verbose, "  compiled module \"" + mod->name + "\" → " +
-                            vfs_path + "  (" +
-                            std::to_string(result.ir.size()) + " bytes)");
+    logVerbose(verbose, "  compiled module \"" + mod->name + "\" → " + vfs_path
+                            + "  (" + std::to_string(result.ir.size())
+                            + " bytes)");
   }
 
   for (const Config::SpirV_Shader *shader : spirv_shaders)
@@ -322,18 +320,16 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
     const fs::path abs_source = resolvePath(source_dir, shader->source_path);
     out.source_dependencies.push_back(abs_source);
 
-    const bool want_ir =
-        shader->mode == Config::SlangOutputMode::SlangIR ||
-        shader->mode == Config::SlangOutputMode::Both;
-    const bool want_spv =
-        shader->mode == Config::SlangOutputMode::SpirV ||
-        shader->mode == Config::SlangOutputMode::Both;
+    const bool want_ir = shader->mode == Config::SlangOutputMode::SlangIR
+                         || shader->mode == Config::SlangOutputMode::Both;
+    const bool want_spv = shader->mode == Config::SlangOutputMode::SpirV
+                          || shader->mode == Config::SlangOutputMode::Both;
 
     session.destroySession();
     if (!session.createSession(search_paths, {}, shader->options))
     {
-      throw std::runtime_error("failed to create Slang session for shader '" +
-                               shader->name + "'");
+      throw std::runtime_error("failed to create Slang session for shader '"
+                               + shader->name + "'");
     }
 
     for (const std::string &dep_name : shader->dependencies)
@@ -341,18 +337,16 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
       const auto it = compiled_modules.find(dep_name);
       if (it == compiled_modules.end())
       {
-        throw std::runtime_error("slang shader \"" + shader->name +
-                                 "\" depends on unknown module '" + dep_name +
-                                 "'");
+        throw std::runtime_error("slang shader \"" + shader->name
+                                 + "\" depends on unknown module '" + dep_name
+                                 + "'");
       }
 
       if (!session.loadModuleFromIR(it->second.import_name,
-                                    it->second.ir.data(),
-                                    it->second.ir.size()))
+                                    it->second.ir.data(), it->second.ir.size()))
       {
-        throw std::runtime_error("failed to load dependency module '" +
-                                 dep_name + "' for shader '" + shader->name +
-                                 "'");
+        throw std::runtime_error("failed to load dependency module '" + dep_name
+                                 + "' for shader '" + shader->name + "'");
       }
     }
 
@@ -377,9 +371,9 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
       appendSegment(out, makeSegment(BlobSegmentKind::ShaderIR, shader->name,
                                      ir_vfs, ir_result.ir));
 
-      logVerbose(verbose, "  compiled shader IR \"" + shader->name + "\" → " +
-                              ir_vfs + "  (" +
-                              std::to_string(ir_result.ir.size()) + " bytes)");
+      logVerbose(verbose,
+                 "  compiled shader IR \"" + shader->name + "\" → " + ir_vfs
+                     + "  (" + std::to_string(ir_result.ir.size()) + " bytes)");
     }
 
     std::string spirv_vfs;
@@ -415,12 +409,12 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
       }
 
       spirv_vfs = vfsPathValue(shader->spv_vfs_path);
-      appendSegment(out,
-                    makeSegment(BlobSegmentKind::ShaderSpirV, shader->name,
-                                spirv_vfs, spirvWordsToBytes(spv_result.binary)));
+      appendSegment(out, makeSegment(BlobSegmentKind::ShaderSpirV, shader->name,
+                                     spirv_vfs,
+                                     spirvWordsToBytes(spv_result.binary)));
 
-      if (shader->mode == Config::SlangOutputMode::SpirV ||
-          shader->mode == Config::SlangOutputMode::Both)
+      if (shader->mode == Config::SlangOutputMode::SpirV
+          || shader->mode == Config::SlangOutputMode::Both)
       {
         out.spirv_shaders.push_back({
             {"name", shader->name},
@@ -433,8 +427,8 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
         });
       }
 
-      logVerbose(verbose, "  compiled shader SPIR-V \"" + shader->name +
-                              "\" → " + spirv_vfs);
+      logVerbose(verbose, "  compiled shader SPIR-V \"" + shader->name + "\" → "
+                              + spirv_vfs);
     }
 
     if (want_ir)
@@ -453,7 +447,8 @@ ShaderCodegenData compile_manifest_shaders(const Manifest &manifest,
           {"vfs_path", ir_vfs},
           {"dep_idents", dep_modules},
           {"dep_count", dep_modules.size()},
-          {"target_format", targetFormatToTemplate(shader->options.target_format)},
+          {"target_format",
+           targetFormatToTemplate(shader->options.target_format)},
           {"optimization",
            optimizationToTemplate(shader->options.optimization)},
           {"float_mode", floatModeToTemplate(shader->options.float_mode)},

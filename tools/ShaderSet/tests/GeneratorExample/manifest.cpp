@@ -15,8 +15,9 @@ Manifest make_manifest()
 {
   Manifest manifest;
 
-  open(manifest) | file_at("example_data", {"binary-resource.txt"},
-                           Config::VirtualPath{"/example_data"})
+  open(manifest)
+      | file_at("example_data", {"binary-resource.txt"},
+                Config::VirtualPath{"/example_data"})
       | register_all();
 
   return manifest;

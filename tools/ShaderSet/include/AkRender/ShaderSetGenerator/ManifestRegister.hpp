@@ -72,25 +72,25 @@ private:
                                     std::filesystem::path source_root);
 
 [[nodiscard]] ManifestRegister into(ManifestRegister reg,
-                                      Config::VirtualPath vfs_prefix);
+                                    Config::VirtualPath vfs_prefix);
 
 [[nodiscard]] ManifestRegister map_parallel(ManifestRegister reg);
 
 [[nodiscard]] ManifestRegister file(ManifestRegister reg, std::string name,
                                     Config::SourcePath source);
 
-[[nodiscard]] ManifestRegister
-files(ManifestRegister reg,
-      std::initializer_list<std::pair<std::string, Config::SourcePath>> entries);
+[[nodiscard]] ManifestRegister files(
+    ManifestRegister reg,
+    std::initializer_list<std::pair<std::string, Config::SourcePath>> entries);
 
 [[nodiscard]] ManifestRegister file_at(ManifestRegister reg, std::string name,
                                        Config::SourcePath source,
                                        Config::VirtualPath absolute_vfs);
 
 [[nodiscard]] ManifestRegister tree(ManifestRegister reg,
-                                      std::filesystem::path source_dir,
-                                      Config::VirtualPath vfs_prefix,
-                                      TreeNamePolicy name_policy);
+                                    std::filesystem::path source_dir,
+                                    Config::VirtualPath vfs_prefix,
+                                    TreeNamePolicy name_policy);
 
 [[nodiscard]] ManifestRegister
 module(ManifestRegister reg, std::string name,
@@ -116,11 +116,20 @@ both(ManifestRegister reg, std::string name, Config::SourcePath source,
 spirv_file(ManifestRegister reg, std::string name, Config::SourcePath source,
            std::string_view entry_point, AkRender::ShaderSet::Stage stage);
 
-/// One-shot parallel disk embed (equivalent to open | into | from | map_parallel | files).
+/// One-shot parallel disk embed (equivalent to open | into | from |
+/// map_parallel | files).
 void embed_parallel(
     Manifest &manifest, Config::VirtualPath vfs_prefix,
     std::filesystem::path source_root,
     std::initializer_list<std::pair<std::string, Config::SourcePath>> files);
+
+class ModuleStep;
+class SlangStep;
+class SpirVFileStep;
+
+[[nodiscard]] ModuleStep module(std::string name);
+[[nodiscard]] SlangStep slang(std::string name);
+[[nodiscard]] SpirVFileStep spirv_file(std::string name);
 
 namespace detail
 {
@@ -135,7 +144,7 @@ template <typename Fn, typename... Rest>
     { (reg | fn) } -> std::same_as<ManifestRegister>;
   }
 [[nodiscard]] inline ManifestRegister pipe(ManifestRegister reg, Fn &&fn,
-                                         Rest &&...rest)
+                                           Rest &&...rest)
 {
   return pipe(reg | std::forward<Fn>(fn), std::forward<Rest>(rest)...);
 }
@@ -168,14 +177,13 @@ inline auto register_all()
 
 /// Apply one or more pipeline steps, then finish (void terminal).
 template <typename... Fns>
-  requires(sizeof...(Fns) > 0 &&
-           (requires(Fns fn, ManifestRegister reg) {
+  requires(sizeof...(Fns) > 0 && (requires(Fns fn, ManifestRegister reg) {
              { (reg | fn) } -> std::same_as<ManifestRegister>;
-           } &&
-            ...))
+           } && ...))
 inline auto register_all(Fns &&...fns)
 {
-  return [fns = std::make_tuple(std::forward<Fns>(fns)...)](ManifestRegister reg)
+  return
+      [fns = std::make_tuple(std::forward<Fns>(fns)...)](ManifestRegister reg)
   {
     std::apply(
         [&reg](auto &&...steps)
@@ -225,8 +233,8 @@ inline auto map_by_name()
   };
 }
 
-inline auto files(
-    std::initializer_list<std::pair<std::string, Config::SourcePath>> entries)
+inline auto
+files(std::initializer_list<std::pair<std::string, Config::SourcePath>> entries)
 {
   return [entries](ManifestRegister reg)
   { return files(std::move(reg), entries); };
@@ -234,8 +242,8 @@ inline auto files(
 
 inline auto file(std::string name, Config::SourcePath source)
 {
-  return [name = std::move(name),
-          source = std::move(source)](ManifestRegister reg)
+  return
+      [name = std::move(name), source = std::move(source)](ManifestRegister reg)
   { return file(std::move(reg), name, source); };
 }
 
@@ -244,11 +252,8 @@ inline auto tree(std::filesystem::path source_dir,
                  TreeNamePolicy name_policy = TreeNamePolicy::RelativePath)
 {
   return [source_dir = std::move(source_dir),
-          vfs_prefix = std::move(vfs_prefix),
-          name_policy](ManifestRegister reg)
-  {
-    return tree(std::move(reg), source_dir, vfs_prefix, name_policy);
-  };
+          vfs_prefix = std::move(vfs_prefix), name_policy](ManifestRegister reg)
+  { return tree(std::move(reg), source_dir, vfs_prefix, name_policy); };
 }
 
 inline auto file_at(std::string name, Config::SourcePath source,
@@ -259,6 +264,8 @@ inline auto file_at(std::string name, Config::SourcePath source,
   { return file_at(std::move(reg), name, source, vfs); };
 }
 
+/// Legacy pipe step: \c open(m) | module("math", {"a.slang"}, "math_utils") |
+/// register_all()
 inline auto module(std::string name,
                    std::initializer_list<std::filesystem::path> sources,
                    std::string module_name = {})
@@ -274,17 +281,21 @@ inline auto ir(std::string name, Config::SourcePath source,
 {
   return [name = std::move(name), source = std::move(source), entry_point,
           stage, dependencies](ManifestRegister reg)
-  { return ir(std::move(reg), name, source, entry_point, stage, dependencies); };
+  {
+    return ir(std::move(reg), name, source, entry_point, stage, dependencies);
+  };
 }
 
 inline auto spirv(std::string name, Config::SourcePath source,
-                  std::string_view entry_point, AkRender::ShaderSet::Stage stage,
+                  std::string_view entry_point,
+                  AkRender::ShaderSet::Stage stage,
                   std::initializer_list<std::string_view> dependencies = {})
 {
   return [name = std::move(name), source = std::move(source), entry_point,
           stage, dependencies](ManifestRegister reg)
   {
-    return spirv(std::move(reg), name, source, entry_point, stage, dependencies);
+    return spirv(std::move(reg), name, source, entry_point, stage,
+                 dependencies);
   };
 }
 
@@ -305,14 +316,12 @@ inline auto spirv_file(std::string name, Config::SourcePath source,
 {
   return [name = std::move(name), source = std::move(source), entry_point,
           stage](ManifestRegister reg)
-  {
-    return spirv_file(std::move(reg), name, source, entry_point, stage);
-  };
+  { return spirv_file(std::move(reg), name, source, entry_point, stage); };
 }
 
 } // namespace AkRender::ShaderSetGenerator
 
 #include <AkRender/ShaderSetGenerator/ModuleBuilder.hpp>
+#include <AkRender/ShaderSetGenerator/RegisterPipeline.hpp>
 #include <AkRender/ShaderSetGenerator/SlangBuilder.hpp>
 #include <AkRender/ShaderSetGenerator/SpirVFileBuilder.hpp>
-#include <AkRender/ShaderSetGenerator/RegisterPipeline.hpp>

@@ -50,7 +50,10 @@ struct SlangShaderDesc
   uint8_t num_module_deps;
   CompileOptions options;
 
-  constexpr bool has_offline_spirv() const noexcept { return !spirv.empty(); }
+  constexpr bool has_offline_spirv() const noexcept
+  {
+    return !spirv.empty();
+  }
 };
 
 /// Pre-compiled SPIR-V shader embedded in the blob.
@@ -77,8 +80,7 @@ recordBytes(const Record &record, const void *blobData) noexcept
 }
 
 [[nodiscard]] inline std::span<const std::byte>
-binaryBytes(const BinaryResourceDesc &resource,
-            const void *blobData) noexcept
+binaryBytes(const BinaryResourceDesc &resource, const void *blobData) noexcept
 {
   return recordBytes(resource.data, blobData);
 }
@@ -120,8 +122,7 @@ spirvBytes(const SlangShaderDesc &shader, const void *blobData) noexcept
 // ═════════════════════════════════════════════════════════════════════════════
 
 [[nodiscard]] inline std::span<const std::byte>
-recordBytes(const Record &record,
-            const VirtualFileSystemView &view) noexcept
+recordBytes(const Record &record, const VirtualFileSystemView &view) noexcept
 {
   return recordBytes(record, view.blob().data());
 }

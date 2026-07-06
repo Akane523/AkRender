@@ -26,8 +26,7 @@ TEST(VfsPlacementTest, DefaultsInheritManifestRoots)
 TEST(VfsPlacementTest, ResolveRequiresMapping)
 {
   const VfsPlacement placement;
-  const auto result =
-      placement.resolve("cfg", Config::SourcePath{"cfg.bin"});
+  const auto result = placement.resolve("cfg", Config::SourcePath{"cfg.bin"});
   ASSERT_FALSE(result.has_value());
   EXPECT_TRUE(result.error().find("mapping not selected") != std::string::npos);
 }
@@ -35,9 +34,8 @@ TEST(VfsPlacementTest, ResolveRequiresMapping)
 TEST(VfsPlacementTest, PipelineAdjustsLayout)
 {
   Manifest manifest;
-  VfsPlacement placement = map_parallel(
-      with_vfs_prefix(with_source_root(VfsPlacement::defaults(manifest), "src"),
-                      {"/data"}));
+  VfsPlacement placement = map_parallel(with_vfs_prefix(
+      with_source_root(VfsPlacement::defaults(manifest), "src"), {"/data"}));
 
   EXPECT_EQ(placement.source_root, "src");
   EXPECT_EQ(placement.vfs_prefix.value, "/data");

@@ -25,7 +25,10 @@ struct Record
   std::size_t offset;
   std::size_t size;
 
-  constexpr bool empty() const noexcept { return size == 0; }
+  constexpr bool empty() const noexcept
+  {
+    return size == 0;
+  }
 };
 
 /// Child index range for directory nodes.
@@ -43,8 +46,9 @@ struct ChildRange
 /// alternative of \c payload is active.
 struct Node
 {
-  std::string_view                  name;    ///< component name (not full path)
-  std::variant<Record, ChildRange>  payload; ///< File\u2192Record, Directory\u2192ChildRange
+  std::string_view name; ///< component name (not full path)
+  std::variant<Record, ChildRange>
+      payload; ///< File\u2192Record, Directory\u2192ChildRange
 
   constexpr bool is_file() const noexcept
   {
@@ -55,11 +59,11 @@ struct Node
     return std::holds_alternative<ChildRange>(payload);
   }
 
-  constexpr const Record& data() const noexcept
+  constexpr const Record &data() const noexcept
   {
     return std::get<Record>(payload);
   }
-  constexpr const ChildRange& children() const noexcept
+  constexpr const ChildRange &children() const noexcept
   {
     return std::get<ChildRange>(payload);
   }
@@ -103,14 +107,14 @@ struct Node
 /// @endcode
 struct VirtualFileSystem
 {
-  const Node*    nodes;
-  std::size_t    num_nodes;
+  const Node *nodes;
+  std::size_t num_nodes;
 
   // -- Lookup by std::string_view (constexpr, zero-alloc) ------------
 
   /// Resolve an absolute path (e.g. "/shaders/triangle.spv") to a Node.
   /// Returns nullptr if the path does not exist.
-  constexpr const Node* lookup(std::string_view path) const noexcept
+  constexpr const Node *lookup(std::string_view path) const noexcept
   {
     if (path.empty() || path.front() != '/' || num_nodes == 0)
       return nullptr;
@@ -124,15 +128,15 @@ struct VirtualFileSystem
     while (!path.empty())
     {
       auto slash = path.find('/');
-      auto comp  = (slash == std::string_view::npos)
-                       ? path
-                       : path.substr(0, slash);
+      auto comp =
+          (slash == std::string_view::npos) ? path : path.substr(0, slash);
 
       // Search children of nodes[cur] for a node named `comp`.
-      const Node& dir = nodes[cur];
-      auto& dir_children = dir.children();
-      std::size_t child_end = dir_children.first_child + dir_children.num_children;
-      std::size_t found     = child_end; // sentinel
+      const Node &dir = nodes[cur];
+      auto &dir_children = dir.children();
+      std::size_t child_end =
+          dir_children.first_child + dir_children.num_children;
+      std::size_t found = child_end; // sentinel
       for (std::size_t i = dir_children.first_child; i < child_end; ++i)
       {
         if (nodes[i].name == comp)
@@ -146,13 +150,14 @@ struct VirtualFileSystem
         return nullptr; // component not found
 
       if (slash == std::string_view::npos)
-        return &nodes[found]; // last component – file or directory, either is OK
+        return &nodes[found]; // last component – file or directory, either is
+                              // OK
 
       // Intermediate component – must be a directory to continue.
       if (!nodes[found].is_directory())
         return nullptr;
 
-      cur  = found;
+      cur = found;
       path = path.substr(slash + 1);
     }
 
@@ -162,10 +167,9 @@ struct VirtualFileSystem
   /// Resolve an absolute path to a directory Node.
   /// Returns nullptr if the path does not exist or any component is not a
   /// directory.
-  constexpr const Node*
-  lookup_directory(std::string_view path) const noexcept
+  constexpr const Node *lookup_directory(std::string_view path) const noexcept
   {
-    auto* n = lookup(path);
+    auto *n = lookup(path);
     if (!n || !n->is_directory())
       return nullptr;
     return n;
@@ -175,7 +179,7 @@ struct VirtualFileSystem
   /// Returns an empty Record if the path doesn't exist or is a directory.
   constexpr Record record(std::string_view path) const noexcept
   {
-    auto* n = lookup(path);
+    auto *n = lookup(path);
     if (!n || !n->is_file())
       return Record{};
     return n->data();
@@ -185,7 +189,7 @@ struct VirtualFileSystem
 
   template <typename PathT>
     requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
-  const Node* lookup(PathT&& p) const noexcept
+  const Node *lookup(PathT &&p) const noexcept
   {
     auto str = std::forward<PathT>(p).generic_string();
     return lookup(std::string_view{str});
@@ -193,7 +197,7 @@ struct VirtualFileSystem
 
   template <typename PathT>
     requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
-  const Node* lookup_directory(PathT&& p) const noexcept
+  const Node *lookup_directory(PathT &&p) const noexcept
   {
     auto str = std::forward<PathT>(p).generic_string();
     return lookup_directory(std::string_view{str});
@@ -201,7 +205,7 @@ struct VirtualFileSystem
 
   template <typename PathT>
     requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
-  Record record(PathT&& p) const noexcept
+  Record record(PathT &&p) const noexcept
   {
     auto str = std::forward<PathT>(p).generic_string();
     return record(std::string_view{str});
@@ -222,7 +226,8 @@ struct VirtualFileSystem
 //   const VirtualFileSystemView fs_view{shader_fs, blob};
 //
 //   auto tri_data = fs_view.read("/shaders/triangle.spv");  // span
-//   auto rec      = fs_view.record("/shaders/quad.spv");    // constexpr if view is constexpr
+//   auto rec      = fs_view.record("/shaders/quad.spv");    // constexpr if
+//   view is constexpr
 // @endcode
 // ---------------------------------------------------------------------------
 
@@ -230,18 +235,20 @@ struct VirtualFileSystem
 /// \c std::span<const std::byte> blob, providing direct data access.
 class VirtualFileSystemView
 {
-  const VirtualFileSystem*        fs_;
-  std::span<const std::byte>      blob_;
+  const VirtualFileSystem *fs_;
+  std::span<const std::byte> blob_;
 
 public:
-  constexpr VirtualFileSystemView(
-      const VirtualFileSystem& fs,
-      std::span<const std::byte> blob
-  ) noexcept
+  constexpr VirtualFileSystemView(const VirtualFileSystem &fs,
+                                  std::span<const std::byte> blob) noexcept
       : fs_(&fs), blob_(blob)
-  {}
+  {
+  }
 
-  constexpr std::span<const std::byte> blob() const noexcept { return blob_; }
+  constexpr std::span<const std::byte> blob() const noexcept
+  {
+    return blob_;
+  }
 
   /// Read the content of a file by path.
   /// Returns an empty span if the path does not exist or refers to a
@@ -258,12 +265,12 @@ public:
 
   // -- Delegate to VirtualFileSystem -------------------------------
 
-  constexpr const Node* lookup(std::string_view path) const noexcept
+  constexpr const Node *lookup(std::string_view path) const noexcept
   {
     return fs_->lookup(path);
   }
 
-  constexpr const Node* lookup_directory(std::string_view path) const noexcept
+  constexpr const Node *lookup_directory(std::string_view path) const noexcept
   {
     return fs_->lookup_directory(path);
   }
@@ -277,21 +284,21 @@ public:
 
   template <typename PathT>
     requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
-  const Node* lookup(PathT&& p) const noexcept
+  const Node *lookup(PathT &&p) const noexcept
   {
     return fs_->lookup(std::forward<PathT>(p));
   }
 
   template <typename PathT>
     requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
-  const Node* lookup_directory(PathT&& p) const noexcept
+  const Node *lookup_directory(PathT &&p) const noexcept
   {
     return fs_->lookup_directory(std::forward<PathT>(p));
   }
 
   template <typename PathT>
     requires std::same_as<std::remove_cvref_t<PathT>, std::filesystem::path>
-  Record record(PathT&& p) const noexcept
+  Record record(PathT &&p) const noexcept
   {
     return fs_->record(std::forward<PathT>(p));
   }

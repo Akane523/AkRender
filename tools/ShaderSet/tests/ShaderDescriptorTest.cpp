@@ -18,8 +18,7 @@ TEST(ShaderDescriptorTest, RecordBytesViaView)
   const auto &view = shader_compile_manifest::shader_compile_manifest_view;
   const auto bytes =
       recordBytes(shader_compile_manifest::modules::math.ir, view);
-  const auto viaPath =
-      view.read("/shaders/slang/math_utils.slang-module");
+  const auto viaPath = view.read("/shaders/slang/math_utils.slang-module");
   ASSERT_FALSE(bytes.empty());
   ASSERT_EQ(bytes.size(), viaPath.size());
   EXPECT_TRUE(std::equal(bytes.begin(), bytes.end(), viaPath.begin()));

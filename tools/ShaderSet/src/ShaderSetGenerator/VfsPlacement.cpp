@@ -28,8 +28,7 @@ VfsPlacement::resolve(std::string_view manifest_name,
         "map_by_name, or map_exact)");
   }
 
-  const fs::path batch_root =
-      source_root.empty() ? fs::path(".") : source_root;
+  const fs::path batch_root = source_root.empty() ? fs::path(".") : source_root;
 
   return Config::resolve_vfs_path(mapping, manifest_name, source, batch_root,
                                   vfs_prefix);
@@ -49,21 +48,24 @@ VfsPlacement with_vfs_prefix(VfsPlacement placement, Config::VirtualPath prefix)
 
 VfsPlacement map_parallel(VfsPlacement placement)
 {
-  placement.mapping = Config::VfsMapping{.kind = Config::VfsMapping::Kind::Parallel};
+  placement.mapping =
+      Config::VfsMapping{.kind = Config::VfsMapping::Kind::Parallel};
   placement.mapping_set = true;
   return placement;
 }
 
 VfsPlacement map_basename(VfsPlacement placement)
 {
-  placement.mapping = Config::VfsMapping{.kind = Config::VfsMapping::Kind::Basename};
+  placement.mapping =
+      Config::VfsMapping{.kind = Config::VfsMapping::Kind::Basename};
   placement.mapping_set = true;
   return placement;
 }
 
 VfsPlacement map_by_name(VfsPlacement placement)
 {
-  placement.mapping = Config::VfsMapping{.kind = Config::VfsMapping::Kind::ByName};
+  placement.mapping =
+      Config::VfsMapping{.kind = Config::VfsMapping::Kind::ByName};
   placement.mapping_set = true;
   return placement;
 }

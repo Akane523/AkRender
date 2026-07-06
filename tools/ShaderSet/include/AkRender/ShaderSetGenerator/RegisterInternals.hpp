@@ -27,13 +27,13 @@ store_source_path(const Manifest &manifest, const VfsPlacement &placement,
 module_ir_path(const VfsPlacement &placement, std::string_view import_identity,
                std::string_view manifest_name, Config::SourcePath source);
 
-[[nodiscard]] Config::VirtualPath
-shader_ir_path(const VfsPlacement &placement, std::string_view shader_name,
-               Config::SourcePath source);
+[[nodiscard]] Config::VirtualPath shader_ir_path(const VfsPlacement &placement,
+                                                 std::string_view shader_name,
+                                                 Config::SourcePath source);
 
-[[nodiscard]] Config::VirtualPath
-shader_spv_path(const VfsPlacement &placement, std::string_view shader_name,
-                Config::SourcePath source);
+[[nodiscard]] Config::VirtualPath shader_spv_path(const VfsPlacement &placement,
+                                                  std::string_view shader_name,
+                                                  Config::SourcePath source);
 
 void assign_unique_dependencies(Config::SlangShader *shader,
                                 const std::vector<std::string> &dependencies);

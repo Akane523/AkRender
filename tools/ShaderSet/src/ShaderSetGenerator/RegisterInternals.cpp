@@ -35,8 +35,8 @@ Config::VirtualPath prefixed_default(std::string_view prefix,
   if (prefix.empty())
     return require_normalized(suffix_path);
 
-  const auto joined = Config::vfs_join(Config::VirtualPath{std::string(prefix)},
-                                       suffix_path);
+  const auto joined =
+      Config::vfs_join(Config::VirtualPath{std::string(prefix)}, suffix_path);
   if (!joined)
     throw std::invalid_argument(joined.error());
   return *joined;
@@ -62,7 +62,8 @@ Config::VirtualPath resolve_mapped_or_default(
     const auto resolved = placement.resolve(manifest_name, source);
     if (!resolved)
       throw std::invalid_argument(resolved.error());
-    return require_normalized(replace_extension(resolved->value, mapped_extension));
+    return require_normalized(
+        replace_extension(resolved->value, mapped_extension));
   }
 
   return prefixed_default(placement.vfs_prefix.value, default_suffix_path);
@@ -88,9 +89,10 @@ Config::VirtualPath require_normalized(std::string_view path)
   return *normalized;
 }
 
-Config::VirtualPath
-module_ir_path(const VfsPlacement &placement, std::string_view import_identity,
-               std::string_view manifest_name, Config::SourcePath source)
+Config::VirtualPath module_ir_path(const VfsPlacement &placement,
+                                   std::string_view import_identity,
+                                   std::string_view manifest_name,
+                                   Config::SourcePath source)
 {
   const std::string fallback =
       "/shaders/slang/" + std::string(import_identity) + ".slang-module";
@@ -139,8 +141,8 @@ void ensure_module_dependency(const Manifest &manifest,
 {
   if (!manifest.find_slang_module(module_name))
   {
-    throw std::invalid_argument("shader uses unknown slang module '" +
-                                std::string(module_name) + "'");
+    throw std::invalid_argument("shader uses unknown slang module '"
+                                + std::string(module_name) + "'");
   }
 }
 
