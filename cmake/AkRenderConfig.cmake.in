@@ -1,35 +1,56 @@
 # ── AkRenderConfig.cmake ─────────────────────────────────────────────────────
 # Package configuration for find_package(AkRender).
 #
+# Components:
+#   Core       - Vulkan post-init helpers (default, always available)
+#   Framework  - Bootstrap / platform glue (optional at build and install time)
+#
 # Provides targets:
-#   AkRender::AkRender            - Main renderer library (Vulkan + Slang + deps)
+#   AkRender::Core       - Core library (Vulkan + VMA)
+#   AkRender::AkRender   - Framework library (when Framework component is available)
 #
 # ShaderSet is a separate package — use find_package(AkRenderShaderSet) for
 # add_shader_set() and the ShaderSet runtime libraries.
 #
 # Usage:
-#   find_package(AkRender REQUIRED)
-#   target_link_libraries(my_app PRIVATE AkRender::AkRender)
+#   find_package(AkRender REQUIRED)                          # Core only
+#   find_package(AkRender REQUIRED COMPONENTS Framework)   # Core + framework
+#   target_link_libraries(my_app PRIVATE AkRender::Core)
+#   target_link_libraries(my_app PRIVATE AkRender::AkRender)  # pulls in Core
 
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
 
-# Re-find transitive dependencies
-# Note: consumer should include these in their own vcpkg.json
 find_dependency(Vulkan)
 find_dependency(VulkanMemoryAllocator)
-find_dependency(glfw3)
-find_dependency(glm)
-find_dependency(spdlog)
-find_dependency(Stb)
 
-# Slang provides its own CMake config
-find_dependency(slang CONFIG)
+if(NOT AkRender_FIND_COMPONENTS)
+    set(AkRender_FIND_COMPONENTS Core)
+endif()
 
-# Re-export the library target
-if(NOT TARGET AkRender::AkRender)
+if(NOT TARGET AkRender::Core)
     include("${CMAKE_CURRENT_LIST_DIR}/AkRenderTargets.cmake")
+endif()
+
+set(AkRender_Core_FOUND TRUE)
+
+set(AkRender_FRAMEWORK_AVAILABLE @AKRENDER_BUILD_FRAMEWORK@)
+
+if("Framework" IN_LIST AkRender_FIND_COMPONENTS)
+    if(NOT AkRender_FRAMEWORK_AVAILABLE)
+        set(AkRender_Framework_FOUND FALSE)
+        set(AkRender_NOT_FOUND_MESSAGE
+            "AkRender Framework component was requested but was not built or installed")
+    else()
+        find_dependency(glfw3)
+        find_dependency(glm)
+        find_dependency(spdlog)
+        find_dependency(Stb)
+        set(AkRender_Framework_FOUND TRUE)
+    endif()
+else()
+    set(AkRender_Framework_FOUND ${AkRender_FRAMEWORK_AVAILABLE})
 endif()
 
 check_required_components(AkRender)

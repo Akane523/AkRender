@@ -1,6 +1,15 @@
 # AkRender
 
-A toy renderer built with **Slang** shaders and **Vulkan** API.
+A graphics learning and algorithm experimentation framework built with **Slang**
+shaders and **Vulkan**.
+
+| CMake target | Role |
+|--------------|------|
+| `AkRender::Core` | Core library — Vulkan post-init helpers (Vulkan + VMA) |
+| `AkRender::AkRender` | Optional bootstrap framework — windowing / platform glue |
+| `AkRenderShaderSet::…` | Independent shader build system (see below) |
+
+Using `AkRender::Core` does not require the framework target.
 
 ## Prerequisites
 
@@ -15,11 +24,11 @@ A toy renderer built with **Slang** shaders and **Vulkan** API.
 |---------|---------|
 | Vulkan | Graphics API |
 | VulkanMemoryAllocator | GPU memory allocation |
-| GLFW3 | Windowing & input |
-| GLM | Math library |
-| spdlog | Logging |
-| stb | Image loading |
-| Slang | Shader language & compiler |
+| GLFW3 | Windowing & input (framework only) |
+| GLM | Math library (framework only) |
+| spdlog | Logging (framework only) |
+| stb | Image loading (framework only) |
+| Slang | Shader language & compiler (ShaderSet) |
 | inja | ShaderSet code generation templates |
 | CLI11 | ShaderSet generator CLI |
 | GTest | Unit tests |
@@ -36,6 +45,24 @@ cmake --build --preset debug
 # Or Release
 cmake --preset release
 cmake --build --preset release
+```
+
+Core only (skip the bootstrap framework):
+
+```bash
+cmake --preset debug -DAKRENDER_BUILD_FRAMEWORK=OFF
+cmake --build --preset debug
+```
+
+Link targets:
+
+```cmake
+find_package(AkRender REQUIRED)
+target_link_libraries(my_app PRIVATE AkRender::Core)
+
+# Optional bootstrap framework:
+find_package(AkRender REQUIRED COMPONENTS Framework)
+target_link_libraries(my_app PRIVATE AkRender::AkRender)
 ```
 
 Shader compilation and embedding are handled by **ShaderSet** (`tools/ShaderSet`).
